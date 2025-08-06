@@ -4,6 +4,8 @@ from sqlmodel import SQLModel
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
+from app.models.vin import VIN
+from app.models.service_record import ServiceRecord
 
 # Load env vars from .env file
 load_dotenv()
