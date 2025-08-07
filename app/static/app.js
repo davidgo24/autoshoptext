@@ -28,6 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
             } else {
                 vinProfileDiv.innerHTML = "<p>VIN not found. Please create a new profile.</p>";
                 vinCreationDiv.style.display = "block";
+                document.getElementById("vin").value = vinOrLast6; // Populate VIN field
             }
         } catch (error) {
             console.error("Error:", error);
