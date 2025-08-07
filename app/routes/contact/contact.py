@@ -21,6 +21,8 @@ async def create_contact(
         raise HTTPException(status_code=400, detail="Contact with this phone number already exists")
 
     contact = Contact.from_orm(contact_in)
+    if contact.email == "":
+        contact.email = None
     session.add(contact)
     await session.commit()
     await session.refresh(contact)
