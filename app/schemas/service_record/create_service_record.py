@@ -18,7 +18,7 @@ class OilViscosity(str, Enum):
     W15_40 = "15W-40"
 
 class ServiceRecordCreate(BaseModel):
-    vin_id: int
+    vin: str
     service_date: Optional[date] = None
     oil_type: OilType
     oil_viscosity: OilViscosity

@@ -1,13 +1,15 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlmodel import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.vin import VIN
 from app.core.database import get_session  # provides AsyncSession
 
+from app.schemas.vin.read_vin_profile import VinProfileRead
+
 router = APIRouter()
 
-@router.get("/{vin_or_last8}")
+@router.get("/{vin_or_last8}", response_model=VinProfileRead)
 async def get_vin_profile(
     vin_or_last8: str,
     session: AsyncSession = Depends(get_session),
@@ -19,7 +21,7 @@ async def get_vin_profile(
         query = select(VIN).where(VIN.vin.endswith(vin_or_last8.upper()))
 
     # Use options to eager load related service_records
-    query = query.options(selectinload(VIN.service_records))
+    query = query.options(joinedload(VIN.service_records))
 
     # Execute asynchronously
     result = await session.execute(query)

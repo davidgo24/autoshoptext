@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoShop</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>AutoShop</h1>
+
+    <div id="vin-lookup">
+        <h2>VIN Lookup</h2>
+        <form id="get-vin-profile-form">
+            <input type="text" id="vin_or_last6" name="vin_or_last6" placeholder="Full VIN or Last 6" required>
+            <button type="submit">Search</button>
+        </form>
+    </div>
+
+    <div id="vin-profile"></div>
+
+    <div id="vin-creation" style="display: none;">
+        <h2>Create VIN Profile</h2>
+        <form id="create-vin-form">
+            <input type="text" id="vin" name="vin" placeholder="VIN (17 characters)" required minlength="17" maxlength="17">
+            <button type="button" id="decode-vin-btn">Decode VIN</button>
+            <input type="text" id="make" name="make" placeholder="Make" required>
+            <input type="text" id="model" name="model" placeholder="Model" required>
+            <input type="number" id="year" name="year" placeholder="Year" required>
+            <input type="text" id="trim" name="trim" placeholder="Trim">
+            <input type="text" id="plate" name="plate" placeholder="Plate">
+            <button type="submit">Create VIN</button>
+        </form>
+    </div>
+
+    <div id="service-record-creation" style="display: none;">
+        <h2>Add Service Record</h2>
+        <form id="create-service-record-form">
+            <input type="hidden" id="service-vin" name="vin">
+            
+            <label for="service_date">Service Date</label>
+            <input type="date" id="service_date" name="service_date" required>
+
+            <select id="oil_type" name="oil_type" required>
+                <option value="" disabled selected>Select Oil Type</option>
+                <option value="SYNTHETIC">Synthetic</option>
+                <option value="SYNTHETIC_BLEND">Synthetic Blend</option>
+                <option value="FULL_SYNTHETIC">Full Synthetic</option>
+                <option value="HIGH_MILEAGE_SYNTHETIC_BLEND">High Mileage Synthetic Blend</option>
+                <option value="HIGH_MILEAGE_FULL_SYNTHETIC">High Mileage Full Synthetic</option>
+            </select>
+            <select id="oil_viscosity" name="oil_viscosity" required>
+                <option value="" disabled selected>Select Oil Viscosity</option>
+                <option value="0W-20">0W-20</option>
+                <option value="5W-20">5W-20</option>
+                <option value="5W-30">5W-30</option>
+                <option value="10W-30">10W-30</option>
+                <option value="15W-40">15W-40</option>
+            </select>
+            <input type="number" id="mileage_at_service" name="mileage_at_service" placeholder="Mileage at Service" required>
+            
+            <label for="next_service_mileage_due">Next Service Due (Mileage)</label>
+            <input type="number" id="next_service_mileage_due" name="next_service_mileage_due" placeholder="e.g., 150000" required>
+            
+            <label for="next_service_date_due">Next Service Due (Date)</label>
+            <input type="date" id="next_service_date_due" name="next_service_date_due" required>
+
+            <textarea id="notes" name="notes" placeholder="Service Notes"></textarea>
+            <button type="submit">Add Service Record</button>
+        </form>
+    </div>
+
+    <button id="show-create-vin-form" style="display: none;">Create VIN Profile</button>
+
+    <script src="app.js"></script>
+</body>
+</html>
