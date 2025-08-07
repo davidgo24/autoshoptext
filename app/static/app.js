@@ -228,12 +228,12 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
 
         // Now that the HTML is rendered, set up delegated event listeners
-        setupDelegatedContactEvents(data.id); // Pass the current VIN ID
+        setupDelegatedContactEvents(data.id, data.vin); // Pass VIN ID and VIN string
     }
 
     // --- Delegated Event Handling ---
 
-    function setupDelegatedContactEvents(currentVinId) {
+    function setupDelegatedContactEvents(currentVinId, currentVinString) {
         let searchTimeout;
 
         // Event listener for forms within vinProfileDiv (submit event)
@@ -260,7 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         await linkContactToVin(newContact.id, currentVinId);
                         form.reset();
                         // Re-fetch VIN profile to update contacts display
-                        document.getElementById("vin_or_last6").value = document.getElementById("vin").value; // Use the full VIN from creation form
+                        document.getElementById("vin_or_last6").value = currentVinString; // Use the current VIN string
                         getVinProfileForm.dispatchEvent(new Event("submit"));
                     } else {
                         const error = await response.json();
@@ -279,7 +279,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
                 await linkContactToVin(contactIdToLink, currentVinId);
                 // Re-fetch VIN profile to update contacts display
-                document.getElementById("vin_or_last6").value = document.getElementById("vin").value; // Use the full VIN from creation form
+                document.getElementById("vin_or_last6").value = currentVinString; // Use the current VIN string
                 getVinProfileForm.dispatchEvent(new Event("submit"));
             }
         });
@@ -324,6 +324,25 @@ document.addEventListener("DOMContentLoaded", () => {
                         linkContactButton.disabled = true;
                     }
                 }, 300);
+            }
+        });
+
+        // Event listener for clicks within vinProfileDiv (click event) - for search results selection
+        vinProfileDiv.addEventListener("click", (e) => {
+            const resultItem = e.target.closest(".search-result-item");
+            if (resultItem) {
+                const selectedContactIdInput = document.getElementById("selected_contact_id");
+                const searchContactPhoneInput = document.getElementById("search_contact_phone");
+                const searchResultsList = document.getElementById("search_results_list");
+                const linkContactButton = document.getElementById("link_contact_button");
+
+                const contactId = resultItem.dataset.contactId;
+                const contactNamePhone = resultItem.textContent;
+
+                selectedContactIdInput.value = contactId;
+                searchContactPhoneInput.value = contactNamePhone; // Display selected contact
+                searchResultsList.innerHTML = ""; // Clear results after selection
+                linkContactButton.disabled = false; // Enable link button
             }
         });
     }

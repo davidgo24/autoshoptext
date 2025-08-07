@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.exc import IntegrityError
 from app.models.contact import Contact
 from app.models.vin import VIN
 from app.models.vin_contact_link import VINContactLink
@@ -23,10 +24,19 @@ async def create_contact(
     contact = Contact.from_orm(contact_in)
     if contact.email == "":
         contact.email = None
-    session.add(contact)
-    await session.commit()
-    await session.refresh(contact)
-    return contact
+    try:
+        session.add(contact)
+        await session.commit()
+        await session.refresh(contact)
+        return contact
+    except IntegrityError as e:
+        await session.rollback()
+        if "ix_contact_phone_number" in str(e):
+            raise HTTPException(status_code=400, detail="Contact with this phone number already exists.")
+        elif "ix_contact_email" in str(e):
+            raise HTTPException(status_code=400, detail="Contact with this email already exists.")
+        else:
+            raise HTTPException(status_code=500, detail="An unexpected database error occurred.")
 
 @router.post("/{contact_id}/link_to_vin/{vin_id}")
 async def link_contact_to_vin(

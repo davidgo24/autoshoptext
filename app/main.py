@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import HTTPException
 from app.routes.vin import create_new_vin as vin_create
 from app.routes.vin import get_vin_profile as vin_read
 from app.routes.service_record import create_service_record as sr_create
@@ -30,3 +32,10 @@ async def on_startup():
     await init_db()
     print("DB init done")
     asyncio.create_task(start_scheduler()) # Start the background scheduler
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
