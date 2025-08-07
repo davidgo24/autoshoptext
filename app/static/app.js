@@ -111,11 +111,11 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             if (response.ok) {
+                const result = await response.json();
                 alert("Service record created successfully!");
                 createServiceRecordForm.reset();
-                const vin = data.vin;
-                document.getElementById("vin_or_last6").value = vin;
-                getVinProfileForm.dispatchEvent(new Event("submit"));
+                // Redirect with the new service record ID
+                window.location.href = window.location.pathname + '?new_service_id=' + result.id;
             } else {
                 const error = await response.json();
                 alert(`Error: ${error.detail}`);
