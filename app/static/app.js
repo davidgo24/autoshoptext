@@ -6,6 +6,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const createVinForm = document.getElementById("create-vin-form");
     const decodeVinBtn = document.getElementById("decode-vin-btn");
     const createServiceRecordForm = document.getElementById("create-service-record-form");
+    const pickupMessageSection = document.getElementById("pickup-message-section");
+
+    // --- Page Load Logic ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const newServiceId = urlParams.get('new_service_id');
+
+    if (newServiceId) {
+        // If a new service ID is present, start the pickup message flow
+        handlePickupFlow(newServiceId);
+    } else {
+        // Otherwise, show the default VIN lookup form
+        getVinProfileForm.style.display = 'block';
+    }
 
     // --- Top-Level Event Listeners (Stable Elements) ---
 
@@ -23,9 +36,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 displayVinProfile(data); // Renders HTML and calls setupDelegatedContactEvents
                 serviceRecordCreationDiv.style.display = "block";
                 document.getElementById("service-vin").value = data.vin;
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                document.getElementById('service_date').valueAsDate = today;
             } else {
                 vinProfileDiv.innerHTML = "<p>VIN not found. Please create a new profile.</p>";
                 vinCreationDiv.style.display = "block";
@@ -256,6 +266,76 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // --- Delegated Event Handling ---
+
+    async function handlePickupFlow(serviceRecordId) {
+        // 1. Hide the main content and show the pickup section
+        getVinProfileForm.style.display = 'none';
+        vinProfileDiv.style.display = 'none';
+        vinCreationDiv.style.display = 'none';
+        serviceRecordCreationDiv.style.display = 'none';
+        pickupMessageSection.style.display = 'block';
+
+        // 2. Fetch the service record data
+        const result = await makeApiCall(`/service-record/${serviceRecordId}`);
+
+        if (!result.success) {
+            pickupMessageSection.innerHTML = `<p>Error: Could not load service record data. ${result.error.detail}</p>`;
+            return;
+        }
+
+        const serviceRecord = result.data;
+        const vin = serviceRecord.vin;
+        const contacts = vin.contact_links.map(link => link.contact);
+
+        // 3. Render the initial UI for the pickup flow
+        renderPickupUI(serviceRecord, vin, contacts);
+
+        // 4. Setup event listeners for the new UI
+        // This will be handled in the next steps
+    }
+
+    function renderPickupUI(serviceRecord, vin, contacts) {
+        const contactsHtml = contacts.length > 0
+            ? contacts.map(contact => `
+                <div class="contact-card">
+                    <p><strong>Name:</strong> <span>${contact.name}</span></p>
+                    <p><strong>Phone:</strong> <span>${contact.phone_number}</span></p>
+                    <button class="send-msg-btn" data-contact-id="${contact.id}">Send Pickup Message</button>
+                </div>
+            `).join('')
+            : '<p>No contacts associated with this vehicle.</p>';
+
+        pickupMessageSection.innerHTML = `
+            <h2>Send Pickup Message</h2>
+            <h3>Vehicle: ${vin.year} ${vin.make} ${vin.model} (${vin.vin})</h3>
+            
+            <h4>Select a contact to notify:</h4>
+            <div id="pickup-contact-list">
+                ${contactsHtml}
+            </div>
+
+            <hr>
+
+            <h4>Or add a new contact:</h4>
+            <div id="contact-management-pickup">
+                <h5>Create New Contact</h5>
+                <form id="create-contact-form-pickup">
+                    <input type="text" name="name" placeholder="Name" required>
+                    <input type="text" name="phone_number" placeholder="Phone Number" required>
+                    <input type="email" name="email" placeholder="Email (Optional)">
+                    <button type="submit">Create and Add Contact</button>
+                </form>
+
+                <h5>Link Existing Contact</h5>
+                <form id="link-contact-form-pickup">
+                    <input type="text" id="search_contact_phone_pickup" placeholder="Search by Phone Number">
+                    <div id="search_results_list_pickup"></div>
+                    <input type="hidden" id="selected_contact_id_pickup">
+                    <button type="submit" id="link_contact_button_pickup" disabled>Link Selected Contact</button>
+                </form>
+            </div>
+        `;
+    }
 
     function setupDelegatedContactEvents(currentVinId, currentVinString) {
         let searchTimeout;

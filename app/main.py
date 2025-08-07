@@ -4,6 +4,7 @@ from fastapi.exceptions import HTTPException
 from app.routes.vin import create_new_vin as vin_create
 from app.routes.vin import get_vin_profile as vin_read
 from app.routes.service_record import create_service_record as sr_create
+from app.routes.service_record import read_service_record as sr_read
 from app.routes.decode_vin import decode_vin_nhtsa
 from app.routes.contact import contact as contact_routes
 from app.core.database import init_db
@@ -19,6 +20,7 @@ app = FastAPI()
 app.include_router(vin_create.router, prefix="/vin", tags=["VIN"])
 app.include_router(vin_read.router, prefix="/vin", tags=["VIN"])
 app.include_router(sr_create.router, prefix="/service-record", tags=["ServiceRecord"])
+app.include_router(sr_read.router, prefix="/service-record", tags=["ServiceRecord"])
 app.include_router(decode_vin_nhtsa.router, prefix="/vin", tags=["VIN Decode"])
 app.include_router(contact_routes.router, prefix="/contacts", tags=["Contacts"])
 app.mount(
