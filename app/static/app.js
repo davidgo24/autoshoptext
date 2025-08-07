@@ -14,7 +14,6 @@ document.addEventListener("DOMContentLoaded", () => {
         vinProfileDiv.innerHTML = "";
         vinCreationDiv.style.display = "none";
         serviceRecordCreationDiv.style.display = "none";
-        showCreateVinFormBtn.style.display = "none";
 
         try {
             const response = await fetch(`/vin/${vinOrLast6}`);
@@ -23,11 +22,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 displayVinProfile(data);
                 serviceRecordCreationDiv.style.display = "block";
                 document.getElementById("service-vin").value = data.vin;
-                document.getElementById('service_date').valueAsDate = new Date();
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                document.getElementById('service_date').valueAsDate = today;
             } else {
                 vinProfileDiv.innerHTML = "<p>VIN not found. Please create a new profile.</p>";
                 vinCreationDiv.style.display = "block";
-                showCreateVinFormBtn.style.display = "block";
             }
         } catch (error) {
             console.error("Error:", error);
@@ -35,10 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    showCreateVinFormBtn.addEventListener("click", () => {
-        vinCreationDiv.style.display = "block";
-        showCreateVinFormBtn.style.display = "none";
-    });
+    
 
     decodeVinBtn.addEventListener("click", async () => {
         const vin = document.getElementById("vin").value;
