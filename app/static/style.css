@@ -1,34 +1,112 @@
+/* General Body and Form Styles */
 body {
-    font-family: sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     margin: 20px;
+    background-color: #f9f9f9;
+    color: #333;
 }
 
-h1 {
+h1, h2, h3, h4 {
     text-align: center;
-}
-
-div {
-    margin-bottom: 20px;
 }
 
 form {
     display: flex;
     flex-direction: column;
-    width: 300px;
-    margin: 0 auto;
+    max-width: 400px;
+    margin: 20px auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
 input, select, textarea, button {
-    margin-bottom: 10px;
-    padding: 8px;
+    margin-bottom: 15px;
+    padding: 12px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    font-size: 16px;
 }
 
 button {
     cursor: pointer;
+    background-color: #007aff;
+    color: white;
+    border: none;
+    font-weight: bold;
+    transition: background-color 0.2s;
 }
 
-#vin-profile-data {
+button:hover {
+    background-color: #005ecb;
+}
+
+/* VIN Profile Details */
+.vin-details-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 30px; /* Row gap, Column gap */
+    margin-bottom: 20px;
+}
+
+.vin-details-container p {
+    margin: 0;
+    display: flex;
+    align-items: center;
+}
+
+.vin-details-container strong {
+    margin-right: 5px;
+    color: #555;
+}
+
+.vin-details-container span {
+    font-weight: normal;
+}
+
+/* VIN Profile and Service Record Cards */
+#vin-profile {
+    text-align: center;
+}
+
+.service-records-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
     margin-top: 20px;
-    border: 1px solid #ccc;
-    padding: 10px;
+}
+
+.service-record-card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    text-align: left;
+    width: 320px; /* A slightly larger fixed width for cards */
+}
+
+.service-record-card p {
+    margin: 0 0 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.service-record-card p:last-child {
+    margin-bottom: 0;
+}
+
+.service-record-card strong {
+    color: #555;
+    flex-basis: 40%; /* Assign a fixed basis for the label */
+    margin-right: 10px;
+}
+
+.service-record-card span {
+    flex-basis: 60%; /* Assign the remaining space to the value */
+    text-align: right;
 }

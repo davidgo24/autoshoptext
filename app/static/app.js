@@ -130,30 +130,33 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     function displayVinProfile(data) {
-        const serviceRecordsHtml = (data && data.service_records && Array.isArray(data.service_records)) 
-            ? data.service_records.map(record => `
-                <li>
-                    <strong>Service Date:</strong> ${record.service_date}<br>
-                    <strong>Oil Type:</strong> ${record.oil_type}<br>
-                    <strong>Oil Viscosity:</strong> ${record.oil_viscosity}<br>
-                    <strong>Mileage:</strong> ${record.mileage_at_service}<br>
-                    <strong>Next Service Due:</strong> ${record.next_service_mileage_due} miles / ${record.next_service_date_due}<br>
-                    <strong>Notes:</strong> ${record.notes || 'N/A'}
-                </li>
-            `).join("")
-            : "<li>No service records found.</li>";
+        const serviceRecordsHtml = (data && data.service_records && Array.isArray(data.service_records) && data.service_records.length > 0)
+            ? `<div class="service-records-container">
+                    ${data.service_records.map(record => `
+                        <div class="service-record-card">
+                            <p><strong>Service Date:</strong> <span>${record.service_date}</span></p>
+                            <p><strong>Mileage:</strong> <span>${record.mileage_at_service}</span></p>
+                            <p><strong>Oil Type:</strong> <span>${record.oil_type}</span></p>
+                            <p><strong>Oil Viscosity:</strong> <span>${record.oil_viscosity}</span></p>
+                            <p><strong>Next Due (Miles):</strong> <span>${record.next_service_mileage_due}</span></p>
+                            <p><strong>Next Due (Date):</strong> <span>${record.next_service_date_due}</span></p>
+                            <p><strong>Notes:</strong> <span>${record.notes || 'N/A'}</span></p>
+                        </div>
+                    `).join("")}
+                </div>`
+            : "<p>No service records found.</p>";
 
         vinProfileDiv.innerHTML = `
             <h3>VIN: ${data.vin}</h3>
-            <p>Make: ${data.make}</p>
-            <p>Model: ${data.model}</p>
-            <p>Year: ${data.year}</p>
-            <p>Trim: ${data.trim || "N/A"}</p>
-            <p>Plate: ${data.plate || "N/A"}</p>
+            <div class="vin-details-container">
+                <p><strong>Make:</strong> <span>${data.make}</span></p>
+                <p><strong>Model:</strong> <span>${data.model}</span></p>
+                <p><strong>Year:</strong> <span>${data.year}</span></p>
+                <p><strong>Trim:</strong> <span>${data.trim || "N/A"}</span></p>
+                <p><strong>Plate:</strong> <span>${data.plate || "N/A"}</span></p>
+            </div>
             <h4>Service Records:</h4>
-            <ul>
-                ${serviceRecordsHtml}
-            </ul>
+            ${serviceRecordsHtml}
         `;
     }
 });
