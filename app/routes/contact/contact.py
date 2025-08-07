@@ -63,9 +63,13 @@ async def link_contact_to_vin(
         raise HTTPException(status_code=400, detail="Contact already linked to this VIN")
 
     vin_contact_link = VINContactLink(contact_id=contact_id, vin_id=vin_id)
-    session.add(vin_contact_link)
-    await session.commit()
-    return {"message": "Contact linked to VIN successfully"}
+    try:
+        session.add(vin_contact_link)
+        await session.commit()
+        return {"message": "Contact linked to VIN successfully"}
+    except IntegrityError as e:
+        await session.rollback()
+        raise HTTPException(status_code=400, detail="Contact is already linked to this VIN.")
 
 @router.get("/vin/{vin_id}", response_model=list[ContactRead])
 async def get_contacts_for_vin(
