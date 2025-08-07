@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-    const getVinProfileForm = document.getElementById("get-vin-profile-form");
+    const vinLookupDiv = document.getElementById("vin-lookup");
     const vinProfileDiv = document.getElementById("vin-profile");
     const vinCreationDiv = document.getElementById("vin-creation");
     const serviceRecordCreationDiv = document.getElementById("service-record-creation");
@@ -17,10 +17,12 @@ document.addEventListener("DOMContentLoaded", () => {
         handlePickupFlow(newServiceId);
     } else {
         // Otherwise, show the default VIN lookup form
-        getVinProfileForm.style.display = 'block';
+        vinLookupDiv.style.display = 'block';
     }
 
     // --- Top-Level Event Listeners (Stable Elements) ---
+
+    const getVinProfileForm = document.getElementById("get-vin-profile-form");
 
     getVinProfileForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -269,7 +271,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function handlePickupFlow(serviceRecordId) {
         // 1. Hide the main content and show the pickup section
-        getVinProfileForm.style.display = 'none';
+        vinLookupDiv.style.display = 'none';
         vinProfileDiv.style.display = 'none';
         vinCreationDiv.style.display = 'none';
         serviceRecordCreationDiv.style.display = 'none';
@@ -284,14 +286,69 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const serviceRecord = result.data;
-        const vin = serviceRecord.vin;
-        const contacts = vin.contact_links.map(link => link.contact);
+        const vin = serviceRecord.vin; // This is the VIN object nested inside the service record
+        if (!vin) {
+            pickupMessageSection.innerHTML = `<p>Error: VIN data is missing from the service record.</p>`;
+            return;
+        }
+        const contacts = vin.contacts || []; // Access contacts from the vin object
 
         // 3. Render the initial UI for the pickup flow
         renderPickupUI(serviceRecord, vin, contacts);
 
         // 4. Setup event listeners for the new UI
-        // This will be handled in the next steps
+        setupPickupFlowEvents(serviceRecord, vin, contacts);
+    }
+
+    function setupPickupFlowEvents(serviceRecord, vin, contacts) {
+        const pickupContactList = document.getElementById('pickup-contact-list');
+
+        pickupContactList.addEventListener('click', (e) => {
+            if (e.target.classList.contains('send-msg-btn')) {
+                const contactId = e.target.dataset.contactId;
+                const contact = contacts.find(c => c.id == contactId);
+                if (contact) {
+                    showPickupMessageComposer(serviceRecord, vin, contact);
+                }
+            }
+        });
+    }
+
+    function showPickupMessageComposer(serviceRecord, vin, contact) {
+        const modal = document.getElementById('message-composer-modal');
+        const closeBtn = modal.querySelector('.close-btn');
+
+        // Populate composer fields
+        document.getElementById('composer-title').textContent = `Send Pickup Message to ${contact.name}`;
+        document.getElementById('composer-contact-name').textContent = contact.name;
+        document.getElementById('composer-contact-phone').textContent = contact.phone_number;
+        document.getElementById('composer_contact_id').value = contact.id;
+        document.getElementById('composer_service_record_id').value = serviceRecord.id;
+
+        // Pre-populate the immediate message
+        const immediateMessage = `Your ${vin.year} ${vin.make} ${vin.model} is ready for pickup.`;
+        document.getElementById('composer_message').value = immediateMessage;
+
+        // Show reminder details
+        document.getElementById('reminder-date').textContent = serviceRecord.next_service_date_due;
+        document.getElementById('reminder-mileage').textContent = serviceRecord.next_service_mileage_due;
+        const reminderPreview = `Reminder: Hi ${contact.name}, your ${vin.year} ${vin.make} ${vin.model} is due for service.`;
+        document.getElementById('reminder-message-preview').textContent = reminderPreview;
+
+        // Show the modal
+        modal.style.display = 'block';
+
+        // Close button functionality
+        closeBtn.onclick = () => {
+            modal.style.display = 'none';
+        };
+
+        // Close modal if user clicks outside of it
+        window.onclick = (event) => {
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        };
     }
 
     function renderPickupUI(serviceRecord, vin, contacts) {
