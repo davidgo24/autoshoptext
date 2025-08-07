@@ -137,7 +137,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     <strong>Oil Type:</strong> ${record.oil_type}<br>
                     <strong>Oil Viscosity:</strong> ${record.oil_viscosity}<br>
                     <strong>Mileage:</strong> ${record.mileage_at_service}<br>
-                    <strong>Next Service Due:</strong> ${record.next_service_mileage_due} miles / ${record.next_service_date_due}
+                    <strong>Next Service Due:</strong> ${record.next_service_mileage_due} miles / ${record.next_service_date_due}<br>
+                    <strong>Notes:</strong> ${record.notes || 'N/A'}
                 </li>
             `).join("")
             : "<li>No service records found.</li>";
