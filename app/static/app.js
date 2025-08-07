@@ -129,20 +129,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- Helper Functions (Globally Accessible within DOMContentLoaded) ---
 
     async function linkContactToVin(contactId, vinId) {
-        try {
-            const response = await fetch(`/contacts/${contactId}/link_to_vin/${vinId}`, {
-                method: "POST",
-            });
-            if (response.ok) {
-                alert("Contact linked successfully!");
-            } else {
-                const error = await response.json();
-                alert(`Error linking contact: ${error.detail}`);
-            }
-        } catch (error) {
-            console.error("Error linking contact:", error);
-            alert("An error occurred while linking the contact.");
-        }
+        const result = await makeApiCall(`/contacts/${contactId}/link_to_vin/${vinId}`, 'POST');
+        return result;
     }
 
     async function searchContacts(phoneNumber) {
@@ -158,6 +146,42 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (error) {
             console.error("Error searching contacts:", error);
             return [];
+        }
+    }
+
+    // --- New makeApiCall Helper Function ---
+    async function makeApiCall(url, method = 'GET', body = null) {
+        const options = {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        };
+
+        if (body) {
+            options.body = JSON.stringify(body);
+        }
+
+        try {
+            const response = await fetch(url, options);
+            let data;
+            try {
+                data = await response.json();
+            } catch (jsonError) {
+                // If response is not JSON, get it as text
+                data = await response.text();
+            }
+
+            if (response.ok) {
+                return { success: true, data: data };
+            } else {
+                // Backend errors typically have a 'detail' field
+                const errorMessage = data.detail || data || `HTTP Error: ${response.status}`;
+                return { success: false, error: { status: response.status, detail: errorMessage } };
+            }
+        } catch (networkError) {
+            console.error("Network or unexpected error:", networkError);
+            return { success: false, error: { status: 0, detail: "Network error or unexpected issue." } };
         }
     }
 
@@ -245,30 +269,22 @@ document.addEventListener("DOMContentLoaded", () => {
                 const formData = new FormData(form);
                 const contactData = Object.fromEntries(formData.entries());
 
-                try {
-                    const response = await fetch("/contacts/", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify(contactData),
-                    });
+                const result = await makeApiCall("/contacts/", 'POST', contactData);
 
-                    if (response.ok) {
-                        const newContact = await response.json();
-                        alert(`Contact ${newContact.name} created successfully! Now linking to VIN.`);
-                        await linkContactToVin(newContact.id, currentVinId);
-                        form.reset();
-                        // Re-fetch VIN profile to update contacts display
-                        document.getElementById("vin_or_last6").value = currentVinString; // Use the current VIN string
-                        getVinProfileForm.dispatchEvent(new Event("submit"));
+                if (result.success) {
+                    alert(`Contact ${result.data.name} created successfully! Now linking to VIN.`);
+                    const linkResult = await linkContactToVin(result.data.id, currentVinId);
+                    if (linkResult.success) {
+                        alert("Contact linked successfully!");
                     } else {
-                        const error = await response.json();
-                        alert(`Error creating contact: ${error.detail}`);
+                        alert(`Error linking contact: ${linkResult.error.detail}`);
                     }
-                } catch (error) {
-                    console.error("Error creating contact:", error);
-                    alert("An error occurred while creating the contact.");
+                    form.reset();
+                    // Re-fetch VIN profile to update contacts display
+                    document.getElementById("vin_or_last6").value = currentVinString; // Use the current VIN string
+                    getVinProfileForm.dispatchEvent(new Event("submit"));
+                } else {
+                    alert(`Error creating contact: ${result.error.detail}`);
                 }
             } else if (form.id === "link-contact-form") {
                 const selectedContactIdInput = document.getElementById("selected_contact_id");
@@ -277,7 +293,14 @@ document.addEventListener("DOMContentLoaded", () => {
                     alert("Please select a contact to link from the search results.");
                     return;
                 }
-                await linkContactToVin(contactIdToLink, currentVinId);
+                const result = await linkContactToVin(contactIdToLink, currentVinId);
+                if (result.success) {
+                    alert("Contact linked successfully!");
+                } else if (result.error && result.error.detail === "Contact already linked to this VIN") {
+                    alert("This contact is already linked to the current VIN.");
+                } else {
+                    alert(`Error linking contact: ${result.error.detail}`);
+                }
                 // Re-fetch VIN profile to update contacts display
                 document.getElementById("vin_or_last6").value = currentVinString; // Use the current VIN string
                 getVinProfileForm.dispatchEvent(new Event("submit"));

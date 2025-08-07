@@ -14,11 +14,13 @@ router = APIRouter()
 async def create_contact(
     contact_in: ContactCreate, session: AsyncSession = Depends(get_session)
 ):
-    # Check if contact with this phone number already exists
-    existing_contact = await session.execute(
-        select(Contact).where(Contact.phone_number == contact_in.phone_number)
-    )
-    if existing_contact.scalar_one_or_none():
+    print(f"Attempting to create contact with phone number: {contact_in.phone_number}")
+    existing_contact_query = select(Contact).where(Contact.phone_number == contact_in.phone_number)
+    existing_contact_result = await session.execute(existing_contact_query)
+    existing_contact_obj = existing_contact_result.scalar_one_or_none()
+
+    if existing_contact_obj:
+        print(f"Found existing contact with phone number: {existing_contact_obj.phone_number}")
         raise HTTPException(status_code=400, detail="Contact with this phone number already exists")
 
     contact = Contact.from_orm(contact_in)
