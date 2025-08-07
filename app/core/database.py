@@ -6,6 +6,9 @@ from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 from app.models.vin import VIN
 from app.models.service_record import ServiceRecord
+from app.models.contact import Contact
+from app.models.vin_contact_link import VINContactLink
+from app.models.scheduled_message import ScheduledMessage
 
 # Load env vars from .env file
 load_dotenv()
