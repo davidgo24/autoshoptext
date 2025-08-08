@@ -39,39 +39,4 @@ async def add_service_record(record_in: ServiceRecordCreate, session: AsyncSessi
     await session.commit()
     await session.refresh(record)
 
-    # --- SMS Logic ---
-    # 1. Send immediate "Ready for Pickup" SMS
-    ready_message_body = f"Your {vin.make} {vin.model} ({vin.vin[-6:]}) is ready for pickup!"
-    for link in vin.contact_links:
-        if link.contact.phone_number:
-            await send_sms(link.contact.phone_number, ready_message_body)
-
-    # 2. Schedule "Next Service Due" Reminder SMS
-    reminder_message_template = (
-        "Reminder: Hi {name}, your {make} {model} ({vin_last_6}) is due for service on {next_date_due} or at {next_mileage_due} miles."
-    )
-    
-    for link in vin.contact_links:
-        if link.contact.phone_number:
-            # Construct the personalized message
-            personalized_reminder_message = reminder_message_template.format(
-                name=link.contact.name,
-                make=vin.make,
-                model=vin.model,
-                vin_last_6=vin.vin[-6:],
-                next_date_due=record.next_service_date_due.strftime("%Y-%m-%d"),
-                next_mileage_due=record.next_service_mileage_due
-            )
-
-            # Schedule the message for the next service date
-            scheduled_msg = ScheduledMessage(
-                contact_id=link.contact.id,
-                vin_id=vin.id,
-                message_content=personalized_reminder_message,
-                scheduled_time=datetime.combine(record.next_service_date_due, datetime.min.time()) # Set to start of the day
-            )
-            session.add(scheduled_msg)
-    
-    await session.commit() # Commit scheduled messages
-
     return record

@@ -1,16 +1,16 @@
 from pydantic import BaseModel
 from typing import Optional
 
-class ContactCreate(BaseModel):
+class ContactBase(BaseModel):
     name: str
     phone_number: str
     email: Optional[str] = None
 
-class ContactRead(BaseModel):
+class ContactCreate(ContactBase):
+    pass
+
+class Contact(ContactBase):
     id: int
-    name: str
-    phone_number: str
-    email: Optional[str] = None
 
     class Config:
         from_attributes = True

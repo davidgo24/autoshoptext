@@ -7,6 +7,7 @@ from app.routes.service_record import create_service_record as sr_create
 from app.routes.service_record import read_service_record as sr_read
 from app.routes.decode_vin import decode_vin_nhtsa
 from app.routes.contact import contact as contact_routes
+from app.routes.message import send_message as message_routes
 from app.core.database import init_db
 from app.core.scheduler import start_scheduler
 from fastapi.staticfiles import StaticFiles
@@ -23,6 +24,7 @@ app.include_router(sr_create.router, prefix="/service-record", tags=["ServiceRec
 app.include_router(sr_read.router, prefix="/service-record", tags=["ServiceRecord"])
 app.include_router(decode_vin_nhtsa.router, prefix="/vin", tags=["VIN Decode"])
 app.include_router(contact_routes.router, prefix="/contacts", tags=["Contacts"])
+app.include_router(message_routes.router, prefix="/messages", tags=["Messages"])
 app.mount(
     "/", 
     StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static"), html=True), 

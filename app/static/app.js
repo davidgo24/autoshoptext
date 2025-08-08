@@ -1,3 +1,888 @@
+// Global functions for HTML onclick handlers
+function showMasterMessageView() {
+    // Hide all other sections
+    const vinLookupDiv = document.getElementById("vin-lookup");
+    const vinProfileDiv = document.getElementById("vin-profile");
+    const vinCreationDiv = document.getElementById("vin-creation");
+    const serviceRecordCreationDiv = document.getElementById("service-record-creation");
+    const pickupMessageSection = document.getElementById("pickup-message-section");
+    
+    if (vinLookupDiv) vinLookupDiv.style.display = 'none';
+    if (vinProfileDiv) vinProfileDiv.style.display = 'none';
+    if (vinCreationDiv) vinCreationDiv.style.display = 'none';
+    if (serviceRecordCreationDiv) serviceRecordCreationDiv.style.display = 'none';
+    if (pickupMessageSection) pickupMessageSection.style.display = 'none';
+    
+    // Show master message view
+    const masterView = document.getElementById('master-message-view');
+    if (masterView) {
+        masterView.style.display = 'block';
+        // Set default tab to 'all' and load messages
+        switchToTab('all');
+    }
+}
+
+// Global variables for message view state
+let currentMessageTab = 'all';
+
+function switchToTab(tabName) {
+    currentMessageTab = tabName;
+    
+    // Update tab button styles
+    document.getElementById('tab-all').style.backgroundColor = tabName === 'all' ? '#007bff' : '#6c757d';
+    document.getElementById('tab-pickup').style.backgroundColor = tabName === 'pickup' ? '#007bff' : '#6c757d';
+    document.getElementById('tab-reminder').style.backgroundColor = tabName === 'reminder' ? '#007bff' : '#6c757d';
+    
+    // Load the appropriate message type
+    loadCurrentMessageType();
+}
+
+function loadCurrentMessageType(dateFilter = null) {
+    // Get the date filter from the input if not provided
+    if (dateFilter === null) {
+        const dateInput = document.getElementById('date-filter');
+        dateFilter = dateInput.value || null;
+    }
+    
+    switch (currentMessageTab) {
+        case 'pickup':
+            loadPickupMessages(dateFilter);
+            break;
+        case 'reminder':
+            loadReminderMessages(dateFilter);
+            break;
+        default:
+            loadMasterMessages(dateFilter);
+            break;
+    }
+}
+
+function showInboundMessages() {
+    // For now, just show a placeholder
+    alert("Inbound message monitoring feature coming soon! This will show any messages received from customers.");
+}
+
+async function loadMasterMessages(dateFilter = null) {
+    const content = document.getElementById('master-message-content');
+    if (!content) return;
+    
+    content.innerHTML = '<p>Loading messages...</p>';
+
+    try {
+        const url = dateFilter ? `/messages/all-outbound?date=${dateFilter}` : '/messages/all-outbound';
+        const result = await makeApiCall(url);
+        
+        if (result.success) {
+            const data = result.data;
+            if (data.messages.length === 0) {
+                content.innerHTML = '<p>No messages found for the selected criteria.</p>';
+                return;
+            }
+
+            const messagesHtml = data.messages.map(msg => `
+                <div class="master-message-item ${msg.status === 'sent' ? 'sent' : msg.status === 'failed' ? 'failed' : 'pending'}">
+                    <div class="message-header">
+                        <strong>${msg.contact_name}</strong> (${msg.contact_phone})
+                        <span class="message-status ${msg.status}">${msg.status.toUpperCase()}</span>
+                    </div>
+                    <div class="vehicle-info">
+                        <strong>Vehicle:</strong> ${msg.vehicle_info} (${msg.vin_string})
+                    </div>
+                    <div class="message-content">
+                        <p><strong>${msg.is_reminder ? '🔄 Reminder' : '📱 Pickup'}:</strong> ${msg.message_content}</p>
+                    </div>
+                    <div class="message-details">
+                        <small>
+                            <strong>Scheduled:</strong> ${new Date(msg.scheduled_time).toLocaleString()}
+                            ${msg.sent_at ? `<br><strong>Sent:</strong> ${new Date(msg.sent_at).toLocaleString()}` : ''}
+                        </small>
+                    </div>
+                </div>
+            `).join('');
+
+            content.innerHTML = `
+                <div class="master-message-container">
+                    <h3>All Outbound Messages ${data.date_filter ? `(${data.date_filter})` : '(All Time)'}</h3>
+                    <p><strong>Total Messages:</strong> ${data.total_messages}</p>
+                    ${messagesHtml}
+                </div>
+            `;
+        } else {
+            content.innerHTML = `<p>Error loading messages: ${result.error.detail}</p>`;
+        }
+    } catch (error) {
+        console.error("Error loading master messages:", error);
+        content.innerHTML = '<p>Error loading messages.</p>';
+    }
+}
+
+async function loadPickupMessages(dateFilter = null) {
+    const content = document.getElementById('master-message-content');
+    if (!content) return;
+    
+    content.innerHTML = '<p>Loading pickup messages...</p>';
+
+    try {
+        const url = dateFilter ? `/messages/pickup-messages?date=${dateFilter}` : '/messages/pickup-messages';
+        const result = await makeApiCall(url);
+        
+        if (result.success) {
+            const data = result.data;
+            if (data.messages.length === 0) {
+                content.innerHTML = '<p>No pickup messages found for the selected criteria.</p>';
+                return;
+            }
+
+            const messagesHtml = data.messages.map(msg => `
+                <div class="master-message-item ${msg.status === 'sent' ? 'sent' : msg.status === 'failed' ? 'failed' : 'pending'}">
+                    <div class="message-header">
+                        <strong>${msg.contact_name}</strong> (${msg.contact_phone})
+                        <span class="message-status ${msg.status}">${msg.status.toUpperCase()}</span>
+                    </div>
+                    <div class="vehicle-info">
+                        <strong>Vehicle:</strong> ${msg.vehicle_info} (${msg.vin_string})
+                    </div>
+                    <div class="message-content">
+                        <p><strong>📱 Pickup:</strong> ${msg.message_content}</p>
+                    </div>
+                    <div class="message-details">
+                        <small>
+                            <strong>Sent:</strong> ${new Date(msg.scheduled_time).toLocaleString()}
+                            ${msg.sent_at ? `<br><strong>Delivered:</strong> ${new Date(msg.sent_at).toLocaleString()}` : ''}
+                        </small>
+                    </div>
+                </div>
+            `).join('');
+
+            content.innerHTML = `
+                <div class="master-message-container">
+                    <h3>📱 Pickup Messages ${data.date_filter ? `(${data.date_filter})` : '(All Time)'}</h3>
+                    <p><strong>Total Pickup Messages:</strong> ${data.total_messages}</p>
+                    ${messagesHtml}
+                </div>
+            `;
+        } else {
+            content.innerHTML = `<p>Error loading pickup messages: ${result.error.detail}</p>`;
+        }
+    } catch (error) {
+        console.error("Error loading pickup messages:", error);
+        content.innerHTML = '<p>Error loading pickup messages.</p>';
+    }
+}
+
+async function loadReminderMessages(dateFilter = null) {
+    const content = document.getElementById('master-message-content');
+    if (!content) return;
+    
+    content.innerHTML = '<p>Loading reminder messages...</p>';
+
+    try {
+        const url = dateFilter ? `/messages/reminder-messages?date=${dateFilter}` : '/messages/reminder-messages';
+        const result = await makeApiCall(url);
+        
+        if (result.success) {
+            const data = result.data;
+            if (data.messages.length === 0) {
+                content.innerHTML = '<p>No reminder messages found for the selected criteria.</p>';
+                return;
+            }
+
+            const messagesHtml = data.messages.map(msg => `
+                <div class="master-message-item ${msg.status === 'sent' ? 'sent' : msg.status === 'failed' ? 'failed' : 'pending'}">
+                    <div class="message-header">
+                        <strong>${msg.contact_name}</strong> (${msg.contact_phone})
+                        <span class="message-status ${msg.status}">${msg.status.toUpperCase()}</span>
+                    </div>
+                    <div class="vehicle-info">
+                        <strong>Vehicle:</strong> ${msg.vehicle_info} (${msg.vin_string})
+                    </div>
+                    <div class="message-content">
+                        <p><strong>🔄 Reminder:</strong> ${msg.message_content}</p>
+                    </div>
+                    <div class="message-details">
+                        <small>
+                            <strong>Scheduled for:</strong> ${new Date(msg.scheduled_time).toLocaleString()}
+                            ${msg.sent_at ? `<br><strong>Sent:</strong> ${new Date(msg.sent_at).toLocaleString()}` : ''}
+                        </small>
+                    </div>
+                </div>
+            `).join('');
+
+            content.innerHTML = `
+                <div class="master-message-container">
+                    <h3>🔄 Reminder Messages ${data.date_filter ? `(${data.date_filter})` : '(All Time)'}</h3>
+                    <p><strong>Total Reminder Messages:</strong> ${data.total_messages}</p>
+                    ${messagesHtml}
+                </div>
+            `;
+        } else {
+            content.innerHTML = `<p>Error loading reminder messages: ${result.error.detail}</p>`;
+        }
+    } catch (error) {
+        console.error("Error loading reminder messages:", error);
+        content.innerHTML = '<p>Error loading reminder messages.</p>';
+    }
+}
+
+// Global API call helper function
+async function makeApiCall(url, method = 'GET', body = null) {
+    const options = {
+        method,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    };
+
+    if (body) {
+        options.body = JSON.stringify(body);
+    }
+
+    try {
+        const response = await fetch(url, options);
+        // Clone the response so we can read its body multiple times if needed
+        const clonedResponse = response.clone(); 
+
+        let data;
+        try {
+            data = await response.json(); // Try to read original response as JSON
+        } catch (jsonError) {
+            // If JSON parsing fails, read the cloned response as text
+            data = await clonedResponse.text(); 
+        }
+
+        if (response.ok) {
+            return { success: true, data: data };
+        } else {
+            const errorMessage = (data && typeof data === 'object' && data.detail)
+                                 ? data.detail
+                                 : (data || `HTTP Error: ${response.status}`);
+            return { success: false, error: { status: response.status, detail: errorMessage } };
+        }
+    } catch (networkError) {
+        console.error("Network or unexpected error:", networkError);
+        return { success: false, error: { status: 0, detail: "Network error or unexpected issue." } };
+    }
+}
+
+async function loadMessageHistory(vinId) {
+    const historyContent = document.getElementById('message-history-content');
+    if (!historyContent) return;
+    
+    historyContent.innerHTML = '<p>Loading message history...</p>';
+
+    try {
+        const result = await makeApiCall(`/messages/vin/${vinId}/history`);
+        
+        if (result.success) {
+            const history = result.data;
+            if (history.message_history.length === 0) {
+                historyContent.innerHTML = '<p>No message history found for this vehicle.</p>';
+                return;
+            }
+
+            const historyHtml = history.message_history.map(msg => `
+                <div class="message-history-item ${msg.status === 'sent' ? 'sent' : msg.status === 'failed' ? 'failed' : 'pending'}">
+                    <div class="message-header">
+                        <strong>${msg.contact_name}</strong> (${msg.contact_phone})
+                        <span class="message-status ${msg.status}">${msg.status.toUpperCase()}</span>
+                    </div>
+                    <div class="message-content">
+                        <p><strong>${msg.is_reminder ? '🔄 Reminder' : '📱 Pickup'}:</strong> ${msg.message_content}</p>
+                    </div>
+                    <div class="message-details">
+                        <small>
+                            <strong>Scheduled:</strong> ${new Date(msg.scheduled_time).toLocaleString()}
+                            ${msg.sent_at ? `<br><strong>Sent:</strong> ${new Date(msg.sent_at).toLocaleString()}` : ''}
+                        </small>
+                    </div>
+                </div>
+            `).join('');
+
+            historyContent.innerHTML = `
+                <div class="master-message-container">
+                    <h3>All Outbound Messages ${history.date_filter ? `(${history.date_filter})` : '(All Time)'}</h3>
+                    <p><strong>Total Messages:</strong> ${history.total_messages}</p>
+                    ${historyHtml}
+                </div>
+            `;
+        } else {
+            historyContent.innerHTML = `<p>Error loading message history: ${result.error.detail}</p>`;
+        }
+    } catch (error) {
+        console.error("Error loading message history:", error);
+        historyContent.innerHTML = '<p>Error loading message history.</p>';
+    }
+}
+
+async function loadPickupHistory(vinId) {
+    const historyContent = document.getElementById('message-history-content');
+    if (!historyContent) return;
+    
+    historyContent.innerHTML = '<p>Loading pickup history...</p>';
+
+    try {
+        const result = await makeApiCall(`/messages/vin/${vinId}/pickup-history`);
+        
+        if (result.success) {
+            const history = result.data;
+            if (history.pickup_history.length === 0) {
+                historyContent.innerHTML = '<p>No pickup messages found for this vehicle.</p>';
+                return;
+            }
+
+            const historyHtml = history.pickup_history.map(msg => `
+                <div class="message-history-item ${msg.status === 'sent' ? 'sent' : msg.status === 'failed' ? 'failed' : 'pending'}">
+                    <div class="message-header">
+                        <strong>${msg.contact_name}</strong> (${msg.contact_phone})
+                        <span class="message-status ${msg.status}">${msg.status.toUpperCase()}</span>
+                    </div>
+                    <div class="message-content">
+                        <p><strong>📱 Pickup:</strong> ${msg.message_content}</p>
+                    </div>
+                    <div class="message-details">
+                        <small>
+                            <strong>Sent:</strong> ${new Date(msg.scheduled_time).toLocaleString()}
+                            ${msg.sent_at ? `<br><strong>Delivered:</strong> ${new Date(msg.sent_at).toLocaleString()}` : ''}
+                        </small>
+                    </div>
+                </div>
+            `).join('');
+
+            historyContent.innerHTML = `
+                <div class="message-history-container">
+                    <h5>📱 Pickup Messages - ${history.vehicle_info} (${history.vin_string})</h5>
+                    ${historyHtml}
+                </div>
+            `;
+        } else {
+            historyContent.innerHTML = `<p>Error loading pickup history: ${result.error.detail}</p>`;
+        }
+    } catch (error) {
+        console.error("Error loading pickup history:", error);
+        historyContent.innerHTML = '<p>Error loading pickup history.</p>';
+    }
+}
+
+async function loadReminderHistory(vinId) {
+    const historyContent = document.getElementById('message-history-content');
+    if (!historyContent) return;
+    
+    historyContent.innerHTML = '<p>Loading reminder history...</p>';
+
+    try {
+        const result = await makeApiCall(`/messages/vin/${vinId}/reminder-history`);
+        
+        if (result.success) {
+            const history = result.data;
+            if (history.reminder_history.length === 0) {
+                historyContent.innerHTML = '<p>No reminder messages found for this vehicle.</p>';
+                return;
+            }
+
+            const historyHtml = history.reminder_history.map(msg => `
+                <div class="message-history-item ${msg.status === 'sent' ? 'sent' : msg.status === 'failed' ? 'failed' : 'pending'}">
+                    <div class="message-header">
+                        <strong>${msg.contact_name}</strong> (${msg.contact_phone})
+                        <span class="message-status ${msg.status}">${msg.status.toUpperCase()}</span>
+                    </div>
+                    <div class="message-content">
+                        <p><strong>🔄 Reminder:</strong> ${msg.message_content}</p>
+                    </div>
+                    <div class="message-details">
+                        <small>
+                            <strong>Scheduled for:</strong> ${new Date(msg.scheduled_time).toLocaleString()}
+                            ${msg.sent_at ? `<br><strong>Sent:</strong> ${new Date(msg.sent_at).toLocaleString()}` : ''}
+                        </small>
+                    </div>
+                </div>
+            `).join('');
+
+            historyContent.innerHTML = `
+                <div class="message-history-container">
+                    <h5>🔄 Reminder Messages - ${history.vehicle_info} (${history.vin_string})</h5>
+                    ${historyHtml}
+                </div>
+            `;
+        } else {
+            historyContent.innerHTML = `<p>Error loading reminder history: ${result.error.detail}</p>`;
+        }
+    } catch (error) {
+        console.error("Error loading reminder history:", error);
+        historyContent.innerHTML = '<p>Error loading reminder history.</p>';
+    }
+}
+
+// Global function for VIN message tab switching
+function switchVinMessageTab(tabName, vinId) {
+    // Update tab button styles
+    document.getElementById('vin-tab-all').style.backgroundColor = tabName === 'all' ? '#007bff' : '#6c757d';
+    document.getElementById('vin-tab-pickup').style.backgroundColor = tabName === 'pickup' ? '#007bff' : '#6c757d';
+    document.getElementById('vin-tab-reminder').style.backgroundColor = tabName === 'reminder' ? '#007bff' : '#6c757d';
+    
+    // Load the appropriate message type
+    switch (tabName) {
+        case 'pickup':
+            loadPickupHistory(vinId);
+            break;
+        case 'reminder':
+            loadReminderHistory(vinId);
+            break;
+        default:
+            loadMessageHistory(vinId);
+            break;
+    }
+}
+
+// Global function for service record pickup flow
+async function handlePickupFlow(serviceRecordId) {
+    console.log("DEBUG: Starting pickup flow for service record ID:", serviceRecordId);
+    
+    // Get DOM elements
+    const vinLookupDiv = document.getElementById("vin-lookup");
+    const vinProfileDiv = document.getElementById("vin-profile");
+    const vinCreationDiv = document.getElementById("vin-creation");
+    const serviceRecordCreationDiv = document.getElementById("service-record-creation");
+    const pickupMessageSection = document.getElementById("pickup-message-section");
+
+    if (!pickupMessageSection) {
+        console.error("Pickup message section not found");
+        return;
+    }
+
+    // 1. Hide the main content and show the pickup section
+    if (vinLookupDiv) vinLookupDiv.style.display = 'none';
+    if (vinProfileDiv) vinProfileDiv.style.display = 'none';
+    if (vinCreationDiv) vinCreationDiv.style.display = 'none';
+    if (serviceRecordCreationDiv) serviceRecordCreationDiv.style.display = 'none';
+    pickupMessageSection.style.display = 'block';
+
+    // Show loading state
+    pickupMessageSection.innerHTML = '<h2>Loading service record...</h2>';
+
+    // 2. Fetch the service record data
+    const result = await makeApiCall(`/service-record/${serviceRecordId}`);
+    console.log("DEBUG: Service record API result:", result);
+
+    if (!result.success) {
+        pickupMessageSection.innerHTML = `
+            <div style="text-align: center; margin-bottom: 20px;">
+                <button onclick="window.location.href='./'" style="background-color: #6c757d; margin-bottom: 10px;">← Back to Main</button>
+            </div>
+            <h2>Error Loading Service Record</h2>
+            <p>Could not load service record data: ${result.error.detail}</p>
+        `;
+        return;
+    }
+
+    const serviceRecord = result.data;
+    const vin = serviceRecord.vin; // This is the VIN object nested inside the service record
+    console.log("DEBUG: Service record data:", serviceRecord);
+    console.log("DEBUG: VIN data:", vin);
+    
+    if (!vin) {
+        pickupMessageSection.innerHTML = `
+            <div style="text-align: center; margin-bottom: 20px;">
+                <button onclick="window.location.href='./'" style="background-color: #6c757d; margin-bottom: 10px;">← Back to Main</button>
+            </div>
+            <h2>Error</h2>
+            <p>VIN data is missing from the service record.</p>
+        `;
+        return;
+    }
+    const contacts = vin.contacts || []; // Access contacts from the vin object
+    console.log("DEBUG: Contacts for pickup flow:", contacts);
+
+    // 3. Render the initial UI for the pickup flow
+    renderPickupUI(serviceRecord, vin, contacts);
+
+    // 4. Setup event listeners for the new UI
+    setupPickupFlowEvents(serviceRecord, vin, contacts);
+}
+
+// Global confirmation functions for safety
+function confirmSendToAllContacts(serviceRecordId, contactCount) {
+    if (confirm(`Are you sure you want to send pickup messages to all ${contactCount} contacts?\n\nThis action cannot be undone.`)) {
+        // Get the contacts from the current pickup flow
+        const contactCards = document.querySelectorAll('#pickup-contact-list .contact-card');
+        const contacts = Array.from(contactCards).map(card => ({
+            id: card.querySelector('.send-msg-btn').dataset.contactId
+        }));
+        sendToAllContacts(serviceRecordId, contacts);
+    }
+}
+
+function confirmSkipMessages() {
+    if (confirm("Are you sure you want to skip sending messages?\n\nYou can always come back to send messages later.")) {
+        window.location.href = './';
+    }
+}
+
+// Global functions for pickup flow
+function renderPickupUI(serviceRecord, vin, contacts) {
+    console.log("DEBUG: Contacts received by renderPickupUI:", contacts);
+    const pickupMessageSection = document.getElementById("pickup-message-section");
+    if (!pickupMessageSection) {
+        console.error("Pickup message section not found");
+        return;
+    }
+
+    const contactsHtml = contacts.length > 0
+        ? contacts.map(contact => `
+            <div class="contact-card">
+                <p><strong>Name:</strong> <span>${contact.name}</span></p>
+                <p><strong>Phone:</strong> <span>${contact.phone_number}</span></p>
+                <button class="send-msg-btn" data-contact-id="${contact.id}">📱 Send Pickup Message</button>
+                <div class="message-status" id="status-${contact.id}" style="display: none;">
+                    <span style="color: #28a745; font-size: 12px;">✓ Message sent</span>
+                </div>
+            </div>
+        `).join("")
+        : "<p>No contacts associated with this vehicle. Please add a contact below to send a pickup message.</p>";
+
+    pickupMessageSection.innerHTML = `
+        <div style="text-align: center; margin-bottom: 20px;">
+            <button onclick="window.location.href='./'" style="background-color: #6c757d; margin-bottom: 10px;">← Back to Main</button>
+            <button onclick="window.location.href='./'" style="background-color: #28a745; margin-left: 10px;">✓ Done</button>
+        </div>
+        <h2>Send Pickup Message</h2>
+        <h3>Vehicle: ${vin.year} ${vin.make} ${vin.model} (${vin.vin})</h3>
+        <p><strong>Service Date:</strong> ${serviceRecord.service_date}</p>
+        <p><strong>Mileage:</strong> ${serviceRecord.mileage_at_service}</p>
+        
+        <div style="margin: 20px 0; padding: 15px; background: #e8f5e8; border-radius: 8px; border-left: 4px solid #28a745;">
+            <h4 style="margin-top: 0; color: #155724;">Service Summary:</h4>
+            <p><strong>Oil Type:</strong> ${serviceRecord.oil_type} (${serviceRecord.oil_viscosity})</p>
+            <p><strong>Next Service:</strong> ${serviceRecord.next_service_date_due} or ${serviceRecord.next_service_mileage_due} miles</p>
+            ${serviceRecord.notes ? `<p><strong>Notes:</strong> ${serviceRecord.notes}</p>` : ''}
+        </div>
+        
+        ${contacts.length > 0 ? `
+            <div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <h4 style="margin-top: 0;">Quick Actions:</h4>
+                <button onclick="confirmSendToAllContacts(${serviceRecord.id}, ${contacts.length})" style="background-color: #007bff; margin-right: 10px;">
+                    📤 Send to All Contacts (${contacts.length})
+                </button>
+                <button onclick="confirmSkipMessages()" style="background-color: #ffc107; color: #000;">
+                    ⏭️ Skip Messages
+                </button>
+            </div>
+        ` : ''}
+        
+        <h4>Select a contact to notify:</h4>
+        <div id="pickup-contact-list">
+            ${contactsHtml}
+        </div>
+
+        <hr>
+
+        <h4>Or add a new contact:</h4>
+        <div id="contact-management-pickup">
+            <h5>Create New Contact</h5>
+            <form id="create-contact-form-pickup">
+                <input type="text" name="name" placeholder="Name" required>
+                <input type="text" name="phone_number" placeholder="Phone Number" required>
+                <input type="email" name="email" placeholder="Email (Optional)">
+                <button type="submit">Create and Add Contact</button>
+            </form>
+
+            <h5>Link Existing Contact</h5>
+            <form id="link-contact-form-pickup">
+                <input type="text" id="search_contact_phone_pickup" placeholder="Search by Phone Number">
+                <div id="search_results_list_pickup"></div>
+                <input type="hidden" id="selected_contact_id_pickup">
+                <button type="submit" id="link_contact_button_pickup" disabled>Link Selected Contact</button>
+            </form>
+        </div>
+    `;
+}
+
+function setupPickupFlowEvents(serviceRecord, vin, contacts) {
+    const pickupContactList = document.getElementById('pickup-contact-list');
+    if (!pickupContactList) {
+        console.error("Pickup contact list not found");
+        return;
+    }
+
+    pickupContactList.addEventListener('click', (e) => {
+        if (e.target.classList.contains('send-msg-btn')) {
+            const contactId = e.target.dataset.contactId;
+            const contact = contacts.find(c => c.id == contactId);
+            if (contact) {
+                showPickupMessageComposer(serviceRecord, vin, contact);
+            }
+        }
+    });
+
+    // Setup event listeners for contact management forms in pickup flow
+    setupPickupContactEvents(serviceRecord.vin.id, serviceRecord.vin.vin, serviceRecord, contacts);
+}
+
+function showPickupMessageComposer(serviceRecord, vin, contact) {
+    const modal = document.getElementById('message-composer-modal');
+    const closeBtn = modal.querySelector('.close-btn');
+
+    // Populate composer fields
+    document.getElementById('composer-title').textContent = `Send Pickup Message to ${contact.name}`;
+    document.getElementById('composer-contact-name').textContent = contact.name;
+    document.getElementById('composer-contact-phone').textContent = contact.phone_number;
+    document.getElementById('composer_contact_id').value = contact.id;
+    document.getElementById('composer_service_record_id').value = serviceRecord.id;
+
+    // Pre-populate the immediate message
+    const immediateMessage = `Hi ${contact.name}, your ${vin.year} ${vin.make} ${vin.model} is ready for pickup. Service completed on ${serviceRecord.service_date}.`;
+    document.getElementById('composer_message').value = immediateMessage;
+
+    // Show reminder details
+    document.getElementById('reminder-date').textContent = serviceRecord.next_service_date_due;
+    document.getElementById('reminder-mileage').textContent = serviceRecord.next_service_mileage_due;
+    const reminderPreview = `Hi ${contact.name}, your ${vin.year} ${vin.make} ${vin.model} (${vin.vin.slice(-6)}) is due for service on ${serviceRecord.next_service_date_due} or at ${serviceRecord.next_service_mileage_due} miles.`;
+    document.getElementById('reminder-message-preview').textContent = reminderPreview;
+
+    // Show the modal
+    modal.style.display = 'block';
+
+    // Close button functionality
+    closeBtn.onclick = () => {
+        modal.style.display = 'none';
+    };
+
+    // Close modal if user clicks outside of it
+    window.onclick = (event) => {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    };
+
+    // Handle message form submission
+    const sendMessageForm = document.getElementById('send-message-form');
+    sendMessageForm.onsubmit = async (e) => {
+        e.preventDefault();
+        const formData = new FormData(sendMessageForm);
+        const messageData = Object.fromEntries(formData.entries());
+
+        // Show loading state
+        const submitButton = sendMessageForm.querySelector('button[type="submit"]');
+        const originalText = submitButton.textContent;
+        submitButton.textContent = 'Sending...';
+        submitButton.disabled = true;
+
+        try {
+            const result = await makeApiCall("/messages/send", 'POST', {
+                service_record_id: parseInt(messageData.service_record_id),
+                contact_id: parseInt(messageData.contact_id),
+                immediate_message_content: messageData.message
+            });
+
+            if (result.success) {
+                const deliveryStatus = result.data.sms_sent ? "✅ Sent via SMS" : "⚠️ SMS not configured, but reminder scheduled";
+                alert(`Message sent and reminder scheduled successfully!\n\n${deliveryStatus}`);
+                modal.style.display = 'none';
+                
+                // Show success status for this contact
+                const statusDiv = document.getElementById(`status-${messageData.contact_id}`);
+                if (statusDiv) {
+                    statusDiv.style.display = 'block';
+                }
+                
+                // Disable the send button for this contact
+                const sendBtn = document.querySelector(`[data-contact-id="${messageData.contact_id}"]`);
+                if (sendBtn) {
+                    sendBtn.textContent = '✓ Sent';
+                    sendBtn.disabled = true;
+                    sendBtn.style.backgroundColor = '#6c757d';
+                }
+                
+                // Refresh message history if we're on a VIN profile
+                const messageHistoryContent = document.getElementById('message-history-content');
+                if (messageHistoryContent && messageHistoryContent.innerHTML.includes('message-history-container')) {
+                    // We're on a VIN profile, refresh the history
+                    const vinId = serviceRecord.vin.id;
+                    loadMessageHistory(vinId);
+                }
+                
+                // Don't redirect - keep the pickup flow open so user can send to other contacts
+                // Optionally refresh the pickup flow to show updated status
+                // handlePickupFlow(serviceRecord.id);
+            } else {
+                alert(`Error sending message: ${result.error.detail}`);
+            }
+        } catch (error) {
+            console.error("Error sending message:", error);
+            alert("An unexpected error occurred while sending the message.");
+        } finally {
+            // Restore button state
+            submitButton.textContent = originalText;
+            submitButton.disabled = false;
+        }
+    };
+}
+
+function setupPickupContactEvents(currentVinId, currentVinString, serviceRecord, contacts) {
+    let searchTimeout;
+
+    // Event listener for pickup contact forms
+    const pickupMessageSection = document.getElementById("pickup-message-section");
+    if (!pickupMessageSection) return;
+
+    pickupMessageSection.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const form = e.target;
+
+        if (form.id === "create-contact-form-pickup") {
+            const formData = new FormData(form);
+            const contactData = Object.fromEntries(formData.entries());
+
+            const result = await makeApiCall("/contacts/", 'POST', contactData);
+
+            if (result.success) {
+                alert(`Contact ${result.data.name} created successfully! Now linking to VIN.`);
+                const linkResult = await linkContactToVin(result.data.id, currentVinId);
+                if (linkResult.success) {
+                    alert("Contact linked successfully!");
+                    // Update the local contacts list instead of page reload
+                    contacts.push(result.data);
+                    renderPickupUI(serviceRecord, serviceRecord.vin, contacts);
+                } else {
+                    alert(`Error linking contact: ${linkResult.error.detail}`);
+                }
+                form.reset();
+            } else {
+                alert(`Error creating contact: ${result.error.detail}`);
+            }
+        } else if (form.id === "link-contact-form-pickup") {
+            const selectedContactIdInput = document.getElementById("selected_contact_id_pickup");
+            const contactIdToLink = selectedContactIdInput.value;
+            if (!contactIdToLink) {
+                alert("Please select a contact to link from the search results.");
+                return;
+            }
+            const result = await linkContactToVin(contactIdToLink, currentVinId);
+            if (result.success) {
+                alert("Contact linked successfully!");
+                // Refresh the pickup UI to show the new contact
+                handlePickupFlow(serviceRecord.id);
+            } else if (result.error && result.error.detail === "Contact already linked to this VIN") {
+                alert("This contact is already linked to the current VIN.");
+            } else {
+                alert(`Error linking contact: ${result.error.detail}`);
+            }
+        }
+    });
+
+    // Event listener for input changes in pickup flow
+    pickupMessageSection.addEventListener("input", async (e) => {
+        if (e.target.id === "search_contact_phone_pickup") {
+            const searchContactPhoneInput = e.target;
+            const searchResultsList = document.getElementById("search_results_list_pickup");
+            const selectedContactIdInput = document.getElementById("selected_contact_id_pickup");
+            const linkContactButton = document.getElementById("link_contact_button_pickup");
+
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(async () => {
+                const phoneNumber = searchContactPhoneInput.value.trim();
+                if (phoneNumber.length >= 3) {
+                    const foundContacts = await searchContacts(phoneNumber);
+                    searchResultsList.innerHTML = ""; // Clear previous results
+                    if (foundContacts.length === 0) {
+                        searchResultsList.innerHTML = "<p>No contacts found.</p>";
+                        selectedContactIdInput.value = "";
+                        linkContactButton.disabled = true;
+                        return;
+                    }
+
+                    foundContacts.forEach(contact => {
+                        const resultItem = document.createElement("div");
+                        resultItem.classList.add("search-result-item");
+                        resultItem.innerHTML = `<strong>${contact.name}</strong> (${contact.phone_number})`;
+                        resultItem.dataset.contactId = contact.id;
+                        resultItem.addEventListener("click", () => {
+                            selectedContactIdInput.value = contact.id;
+                            searchContactPhoneInput.value = `${contact.name} (${contact.phone_number})`;
+                            searchResultsList.innerHTML = "";
+                            linkContactButton.disabled = false;
+                        });
+                        searchResultsList.appendChild(resultItem);
+                    });
+                } else {
+                    searchResultsList.innerHTML = "";
+                    selectedContactIdInput.value = "";
+                    linkContactButton.disabled = true;
+                }
+            }, 300);
+        }
+    });
+
+    // Event listener for clicks in pickup flow
+    pickupMessageSection.addEventListener("click", (e) => {
+        const resultItem = e.target.closest(".search-result-item");
+        if (resultItem) {
+            const selectedContactIdInput = document.getElementById("selected_contact_id_pickup");
+            const searchContactPhoneInput = document.getElementById("search_contact_phone_pickup");
+            const searchResultsList = document.getElementById("search_results_list_pickup");
+            const linkContactButton = document.getElementById("link_contact_button_pickup");
+
+            const contactId = resultItem.dataset.contactId;
+            const contactNamePhone = resultItem.textContent;
+
+            selectedContactIdInput.value = contactId;
+            searchContactPhoneInput.value = contactNamePhone;
+            searchResultsList.innerHTML = "";
+            linkContactButton.disabled = false;
+        }
+    });
+}
+
+// Helper functions that need to be global
+async function searchContacts(phoneNumber) {
+    try {
+        const response = await fetch(`/contacts/search?phone_number=${phoneNumber}`);
+        if (response.ok) {
+            const contacts = await response.json();
+            return contacts;
+        } else {
+            console.error("Failed to search contacts.");
+            return [];
+        }
+    } catch (error) {
+        console.error("Error searching contacts:", error);
+        return [];
+    }
+}
+
+async function linkContactToVin(contactId, vinId) {
+    const result = await makeApiCall(`/contacts/${contactId}/link_to_vin/${vinId}`, 'POST');
+    return result;
+}
+
+async function sendToAllContacts(serviceRecordId, contacts) {
+    if (!confirm(`Send pickup message to all ${contacts.length} contacts?`)) {
+        return;
+    }
+
+    const immediateMessage = `Your vehicle is ready for pickup. Service completed.`;
+    
+    for (const contact of contacts) {
+        try {
+            const result = await makeApiCall("/messages/send", 'POST', {
+                service_record_id: serviceRecordId,
+                contact_id: contact.id,
+                immediate_message_content: immediateMessage
+            });
+
+            if (result.success) {
+                console.log(`Message sent to ${contact.name}`);
+            } else {
+                console.error(`Failed to send to ${contact.name}: ${result.error.detail}`);
+            }
+        } catch (error) {
+            console.error(`Error sending to ${contact.name}:`, error);
+        }
+    }
+
+    alert(`Messages sent to ${contacts.length} contacts!`);
+    window.location.href = window.location.pathname;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     const vinLookupDiv = document.getElementById("vin-lookup");
     const vinProfileDiv = document.getElementById("vin-profile");
@@ -7,6 +892,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const decodeVinBtn = document.getElementById("decode-vin-btn");
     const createServiceRecordForm = document.getElementById("create-service-record-form");
     const pickupMessageSection = document.getElementById("pickup-message-section");
+
+    // Get current path for redirects
+    const currentPath = window.location.pathname;
 
     // --- Page Load Logic ---
     const urlParams = new URLSearchParams(window.location.search);
@@ -35,7 +923,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const response = await fetch(`/vin/${vinOrLast6}`);
             if (response.ok) {
                 const data = await response.json();
-                displayVinProfile(data); // Renders HTML and calls setupDelegatedContactEvents
+                displayVinProfile(data); // Renders HTML and calls setupVinProfileContactEvents
                 serviceRecordCreationDiv.style.display = "block";
                 document.getElementById("service-vin").value = data.vin;
             } else {
@@ -127,7 +1015,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 alert("Service record created successfully!");
                 createServiceRecordForm.reset();
                 // Redirect with the new service record ID
-                window.location.href = window.location.pathname + '?new_service_id=' + result.id;
+                window.location.href = currentPath + '?new_service_id=' + result.id;
             } else {
                 const error = await response.json();
                 alert(`Error: ${error.detail}`);
@@ -138,81 +1026,37 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // --- Helper Functions (Globally Accessible within DOMContentLoaded) ---
-
-    async function linkContactToVin(contactId, vinId) {
-        const result = await makeApiCall(`/contacts/${contactId}/link_to_vin/${vinId}`, 'POST');
-        return result;
-    }
-
-    async function searchContacts(phoneNumber) {
-        try {
-            const response = await fetch(`/contacts/search?phone_number=${phoneNumber}`);
-            if (response.ok) {
-                const contacts = await response.json();
-                return contacts;
-            } else {
-                console.error("Failed to search contacts.");
-                return [];
-            }
-        } catch (error) {
-            console.error("Error searching contacts:", error);
-            return [];
-        }
-    }
-
-    // --- New makeApiCall Helper Function ---
-    async function makeApiCall(url, method = 'GET', body = null) {
-        const options = {
-            method,
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        };
-
-        if (body) {
-            options.body = JSON.stringify(body);
-        }
-
-        try {
-            const response = await fetch(url, options);
-            let data;
-            try {
-                data = await response.json();
-            } catch (jsonError) {
-                // If response is not JSON, get it as text
-                data = await response.text();
-            }
-
-            if (response.ok) {
-                return { success: true, data: data };
-            } else {
-                // Backend errors typically have a 'detail' field
-                const errorMessage = data.detail || data || `HTTP Error: ${response.status}`;
-                return { success: false, error: { status: response.status, detail: errorMessage } };
-            }
-        } catch (networkError) {
-            console.error("Network or unexpected error:", networkError);
-            return { success: false, error: { status: 0, detail: "Network error or unexpected issue." } };
-        }
-    }
-
     // --- Display Function ---
 
     function displayVinProfile(data) {
+        // Find the most recent service record
+        let mostRecentService = null;
+        if (data && data.service_records && Array.isArray(data.service_records) && data.service_records.length > 0) {
+            mostRecentService = data.service_records.reduce((latest, current) => {
+                const latestDate = new Date(latest.service_date);
+                const currentDate = new Date(current.service_date);
+                return currentDate > latestDate ? current : latest;
+            });
+        }
+
         const serviceRecordsHtml = (data && data.service_records && Array.isArray(data.service_records) && data.service_records.length > 0)
             ? `<div class="service-records-container">
-                    ${data.service_records.map(record => `
-                        <div class="service-record-card">
-                            <p><strong>Service Date:</strong> <span>${record.service_date}</span></p>
-                            <p><strong>Mileage:</strong> <span>${record.mileage_at_service}</span></p>
-                            <p><strong>Oil Type:</strong> <span>${record.oil_type}</span></p>
-                            <p><strong>Oil Viscosity:</strong> <span>${record.oil_viscosity}</span></p>
-                            <p><strong>Next Due (Miles):</strong> <span>${record.next_service_mileage_due}</span></p>
-                            <p><strong>Next Due (Date):</strong> <span>${record.next_service_date_due}</span></p>
-                            <p><strong>Notes:</strong> <span>${record.notes || 'N/A'}</span></p>
-                        </div>
-                    `).join("")}
+                    ${data.service_records.map(record => {
+                        const isMostRecent = mostRecentService && record.id === mostRecentService.id;
+                        return `
+                            <div class="service-record-card" style="position: relative; padding-top: ${isMostRecent ? '40px' : '15px'};">
+                                ${isMostRecent ? '<div style="position: absolute; top: 8px; right: 8px; background-color: #28a745; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">⭐ Most Recent</div>' : ''}
+                                <p><strong>Service Date:</strong> <span>${record.service_date}</span></p>
+                                <p><strong>Mileage:</strong> <span>${record.mileage_at_service}</span></p>
+                                <p><strong>Oil Type:</strong> <span>${record.oil_type}</span></p>
+                                <p><strong>Oil Viscosity:</strong> <span>${record.oil_viscosity}</span></p>
+                                <p><strong>Next Due (Miles):</strong> <span>${record.next_service_mileage_due}</span></p>
+                                <p><strong>Next Due (Date):</strong> <span>${record.next_service_date_due}</span></p>
+                                <p><strong>Notes:</strong> <span>${record.notes || 'N/A'}</span></p>
+                                <button onclick="handlePickupFlow(${record.id})" style="background-color: #28a745; margin-top: 10px;">📱 Send Pickup Message</button>
+                            </div>
+                        `;
+                    }).join("")}
                 </div>`
             : "<p>No service records found.</p>";
 
@@ -243,6 +1087,17 @@ document.addEventListener("DOMContentLoaded", () => {
             <h4>Associated Contacts:</h4>
             <div id="associated-contacts">${associatedContactsHtml}</div>
 
+            <h4>Message History:</h4>
+            <div id="message-history">
+                <!-- Message History Tabs -->
+                <div style="margin: 10px 0; border-bottom: 2px solid #dee2e6;">
+                    <button id="vin-tab-all" onclick="switchVinMessageTab('all', ${data.id})" style="background-color: #007bff; color: white; border: none; padding: 8px 16px; margin-right: 5px; border-radius: 5px 5px 0 0;">📊 All Messages</button>
+                    <button id="vin-tab-pickup" onclick="switchVinMessageTab('pickup', ${data.id})" style="background-color: #6c757d; color: white; border: none; padding: 8px 16px; margin-right: 5px; border-radius: 5px 5px 0 0;">📱 Pickup Messages</button>
+                    <button id="vin-tab-reminder" onclick="switchVinMessageTab('reminder', ${data.id})" style="background-color: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 5px 5px 0 0;">🔄 Reminder Messages</button>
+                </div>
+                <div id="message-history-content"></div>
+            </div>
+
             <h4>Manage Contacts:</h4>
             <div id="contact-management">
                 <h5>Create New Contact</h5>
@@ -264,137 +1119,15 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
 
         // Now that the HTML is rendered, set up delegated event listeners
-        setupDelegatedContactEvents(data.id, data.vin); // Pass VIN ID and VIN string
+        setupVinProfileContactEvents(data.id, data.vin); // Pass VIN ID and VIN string
+        
+        // Load the default message history (all messages)
+        switchVinMessageTab('all', data.id);
     }
 
     // --- Delegated Event Handling ---
 
-    async function handlePickupFlow(serviceRecordId) {
-        // 1. Hide the main content and show the pickup section
-        vinLookupDiv.style.display = 'none';
-        vinProfileDiv.style.display = 'none';
-        vinCreationDiv.style.display = 'none';
-        serviceRecordCreationDiv.style.display = 'none';
-        pickupMessageSection.style.display = 'block';
-
-        // 2. Fetch the service record data
-        const result = await makeApiCall(`/service-record/${serviceRecordId}`);
-
-        if (!result.success) {
-            pickupMessageSection.innerHTML = `<p>Error: Could not load service record data. ${result.error.detail}</p>`;
-            return;
-        }
-
-        const serviceRecord = result.data;
-        const vin = serviceRecord.vin; // This is the VIN object nested inside the service record
-        if (!vin) {
-            pickupMessageSection.innerHTML = `<p>Error: VIN data is missing from the service record.</p>`;
-            return;
-        }
-        const contacts = vin.contacts || []; // Access contacts from the vin object
-
-        // 3. Render the initial UI for the pickup flow
-        renderPickupUI(serviceRecord, vin, contacts);
-
-        // 4. Setup event listeners for the new UI
-        setupPickupFlowEvents(serviceRecord, vin, contacts);
-    }
-
-    function setupPickupFlowEvents(serviceRecord, vin, contacts) {
-        const pickupContactList = document.getElementById('pickup-contact-list');
-
-        pickupContactList.addEventListener('click', (e) => {
-            if (e.target.classList.contains('send-msg-btn')) {
-                const contactId = e.target.dataset.contactId;
-                const contact = contacts.find(c => c.id == contactId);
-                if (contact) {
-                    showPickupMessageComposer(serviceRecord, vin, contact);
-                }
-            }
-        });
-    }
-
-    function showPickupMessageComposer(serviceRecord, vin, contact) {
-        const modal = document.getElementById('message-composer-modal');
-        const closeBtn = modal.querySelector('.close-btn');
-
-        // Populate composer fields
-        document.getElementById('composer-title').textContent = `Send Pickup Message to ${contact.name}`;
-        document.getElementById('composer-contact-name').textContent = contact.name;
-        document.getElementById('composer-contact-phone').textContent = contact.phone_number;
-        document.getElementById('composer_contact_id').value = contact.id;
-        document.getElementById('composer_service_record_id').value = serviceRecord.id;
-
-        // Pre-populate the immediate message
-        const immediateMessage = `Your ${vin.year} ${vin.make} ${vin.model} is ready for pickup.`;
-        document.getElementById('composer_message').value = immediateMessage;
-
-        // Show reminder details
-        document.getElementById('reminder-date').textContent = serviceRecord.next_service_date_due;
-        document.getElementById('reminder-mileage').textContent = serviceRecord.next_service_mileage_due;
-        const reminderPreview = `Reminder: Hi ${contact.name}, your ${vin.year} ${vin.make} ${vin.model} is due for service.`;
-        document.getElementById('reminder-message-preview').textContent = reminderPreview;
-
-        // Show the modal
-        modal.style.display = 'block';
-
-        // Close button functionality
-        closeBtn.onclick = () => {
-            modal.style.display = 'none';
-        };
-
-        // Close modal if user clicks outside of it
-        window.onclick = (event) => {
-            if (event.target == modal) {
-                modal.style.display = 'none';
-            }
-        };
-    }
-
-    function renderPickupUI(serviceRecord, vin, contacts) {
-        const contactsHtml = contacts.length > 0
-            ? contacts.map(contact => `
-                <div class="contact-card">
-                    <p><strong>Name:</strong> <span>${contact.name}</span></p>
-                    <p><strong>Phone:</strong> <span>${contact.phone_number}</span></p>
-                    <button class="send-msg-btn" data-contact-id="${contact.id}">Send Pickup Message</button>
-                </div>
-            `).join('')
-            : '<p>No contacts associated with this vehicle.</p>';
-
-        pickupMessageSection.innerHTML = `
-            <h2>Send Pickup Message</h2>
-            <h3>Vehicle: ${vin.year} ${vin.make} ${vin.model} (${vin.vin})</h3>
-            
-            <h4>Select a contact to notify:</h4>
-            <div id="pickup-contact-list">
-                ${contactsHtml}
-            </div>
-
-            <hr>
-
-            <h4>Or add a new contact:</h4>
-            <div id="contact-management-pickup">
-                <h5>Create New Contact</h5>
-                <form id="create-contact-form-pickup">
-                    <input type="text" name="name" placeholder="Name" required>
-                    <input type="text" name="phone_number" placeholder="Phone Number" required>
-                    <input type="email" name="email" placeholder="Email (Optional)">
-                    <button type="submit">Create and Add Contact</button>
-                </form>
-
-                <h5>Link Existing Contact</h5>
-                <form id="link-contact-form-pickup">
-                    <input type="text" id="search_contact_phone_pickup" placeholder="Search by Phone Number">
-                    <div id="search_results_list_pickup"></div>
-                    <input type="hidden" id="selected_contact_id_pickup">
-                    <button type="submit" id="link_contact_button_pickup" disabled>Link Selected Contact</button>
-                </form>
-            </div>
-        `;
-    }
-
-    function setupDelegatedContactEvents(currentVinId, currentVinString) {
+    function setupVinProfileContactEvents(currentVinId, currentVinString) {
         let searchTimeout;
 
         // Event listener for forms within vinProfileDiv (submit event)
@@ -413,8 +1146,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     const linkResult = await linkContactToVin(result.data.id, currentVinId);
                     if (linkResult.success) {
                         alert("Contact linked successfully!");
-                    } else {
-                        alert(`Error linking contact: ${linkResult.error.detail}`);
                     }
                     form.reset();
                     // Re-fetch VIN profile to update contacts display
@@ -456,16 +1187,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 searchTimeout = setTimeout(async () => {
                     const phoneNumber = searchContactPhoneInput.value.trim();
                     if (phoneNumber.length >= 3) {
-                        const contacts = await searchContacts(phoneNumber);
+                        const foundContacts = await searchContacts(phoneNumber);
                         searchResultsList.innerHTML = ""; // Clear previous results
-                        if (contacts.length === 0) {
+                        if (foundContacts.length === 0) {
                             searchResultsList.innerHTML = "<p>No contacts found.</p>";
                             selectedContactIdInput.value = "";
                             linkContactButton.disabled = true;
                             return;
                         }
 
-                        contacts.forEach(contact => {
+                        foundContacts.forEach(contact => {
                             const resultItem = document.createElement("div");
                             resultItem.classList.add("search-result-item");
                             resultItem.innerHTML = `<strong>${contact.name}</strong> (${contact.phone_number})`;
@@ -506,4 +1237,4 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
-});
+}); 

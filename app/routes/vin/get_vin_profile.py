@@ -4,10 +4,9 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.vin import VIN
 from app.models.vin_contact_link import VINContactLink
-from app.core.database import get_session  # provides AsyncSession
+from app.core.database import get_session
 from app.schemas.service_record.read_service_record import ServiceRecordRead
-from app.schemas.contact.contact import ContactRead
-
+from app.schemas.contact.contact import Contact
 from app.schemas.vin.read_vin_profile import VinProfileRead
 
 router = APIRouter()
@@ -43,7 +42,7 @@ async def get_vin_profile(
         trim=vin.trim,
         plate=vin.plate,
         service_records=[ServiceRecordRead.from_orm(sr) for sr in vin.service_records], # Convert to ServiceRecordRead
-        contacts=[ContactRead.from_orm(link.contact) for link in vin.contact_links if link.contact] # Convert to ContactRead
+        contacts=[Contact.from_orm(link.contact) for link in vin.contact_links if link.contact] # Convert to ContactRead
     )
 
     return vin_profile_read

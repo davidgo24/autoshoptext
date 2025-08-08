@@ -5,12 +5,12 @@ from sqlalchemy.exc import IntegrityError
 from app.models.contact import Contact
 from app.models.vin import VIN
 from app.models.vin_contact_link import VINContactLink
-from app.schemas.contact.contact import ContactCreate, ContactRead
+from app.schemas.contact.contact import ContactCreate, Contact as ContactSchema
 from app.core.database import get_session
 
 router = APIRouter()
 
-@router.post("/", response_model=ContactRead)
+@router.post("/", response_model=ContactSchema)
 async def create_contact(
     contact_in: ContactCreate, session: AsyncSession = Depends(get_session)
 ):
@@ -73,7 +73,7 @@ async def link_contact_to_vin(
         await session.rollback()
         raise HTTPException(status_code=400, detail="Contact is already linked to this VIN.")
 
-@router.get("/vin/{vin_id}", response_model=list[ContactRead])
+@router.get("/vin/{vin_id}", response_model=list[ContactSchema])
 async def get_contacts_for_vin(
     vin_id: int, session: AsyncSession = Depends(get_session)
 ):
@@ -86,13 +86,13 @@ async def get_contacts_for_vin(
         contacts.append(link.contact)
     return contacts
 
-@router.get("/all", response_model=list[ContactRead])
+@router.get("/all", response_model=list[ContactSchema])
 async def get_all_contacts(session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(Contact))
     contacts = result.scalars().all()
     return contacts
 
-@router.get("/search", response_model=list[ContactRead])
+@router.get("/search", response_model=list[ContactSchema])
 async def search_contacts(
     phone_number: str = Query(..., min_length=3), session: AsyncSession = Depends(get_session)
 ):

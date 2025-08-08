@@ -15,6 +15,10 @@
             <input type="text" id="vin_or_last6" name="vin_or_last6" placeholder="Full VIN or Last 6" required>
             <button type="submit">Search</button>
         </form>
+        <div style="text-align: center; margin-top: 20px;">
+            <button onclick="showMasterMessageView()" style="background-color: #007bff; margin-right: 10px;">📊 Master Message View</button>
+            <button onclick="showInboundMessages()" style="background-color: #28a745;">📥 Inbound Messages</button>
+        </div>
     </div>
 
     <div id="vin-profile"></div>
@@ -72,6 +76,32 @@
 
     <div id="pickup-message-section" style="display: none;">
         <!-- This will be populated by the handlePickupFlow function -->
+    </div>
+
+    <!-- Master Message View -->
+    <div id="master-message-view" style="display: none;">
+        <h2>📊 Master Message View</h2>
+        <div style="text-align: center; margin-bottom: 20px;">
+            <button onclick="window.location.href='./'" style="background-color: #6c757d; margin-bottom: 10px;">← Back to Main</button>
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <label for="date-filter">Filter by Date:</label>
+            <input type="date" id="date-filter" onchange="loadCurrentMessageType()">
+            <button onclick="loadCurrentMessageType()" style="background-color: #007bff;">🔍 Load Messages</button>
+            <button onclick="loadCurrentMessageType('')" style="background-color: #28a745;">📋 Show All</button>
+        </div>
+
+        <!-- Message Type Tabs -->
+        <div style="margin: 20px 0; border-bottom: 2px solid #dee2e6;">
+            <button id="tab-all" onclick="switchToTab('all')" style="background-color: #007bff; color: white; border: none; padding: 10px 20px; margin-right: 5px; border-radius: 5px 5px 0 0;">📊 All Messages</button>
+            <button id="tab-pickup" onclick="switchToTab('pickup')" style="background-color: #6c757d; color: white; border: none; padding: 10px 20px; margin-right: 5px; border-radius: 5px 5px 0 0;">📱 Pickup Messages</button>
+            <button id="tab-reminder" onclick="switchToTab('reminder')" style="background-color: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 5px 5px 0 0;">🔄 Reminder Messages</button>
+        </div>
+        
+        <div id="master-message-content">
+            <p>Click "Load Messages" to view all outbound messages.</p>
+        </div>
     </div>
 
     <!-- Modal for Message Composer -->
