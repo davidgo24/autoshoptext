@@ -22,6 +22,20 @@ function showMasterMessageView() {
     }
 }
 
+// Date helpers to fix timezone display behavior
+function parseLocalDateFromYMD(ymdString) {
+    // ymdString like '2025-08-09' → Date at local midnight
+    if (!ymdString) return null;
+    const [y, m, d] = ymdString.split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+}
+function dateFromUtcNaiveString(s) {
+    // Backend sends naive UTC (no timezone). Append 'Z' for correct local conversion
+    if (!s) return null;
+    const hasTZ = /[zZ]|[+-]\d{2}:?\d{2}$/.test(s);
+    return new Date(hasTZ ? s : s + 'Z');
+}
+
 // Global variables for message view state
 let currentMessageTab = 'reminder';
 
@@ -729,14 +743,14 @@ function showPickupMessageComposer(serviceRecord, vin, contact) {
     const immediateMessage = (
         `Hi ${contact.name}, your ${vin.make} ${vin.model} is ready! ` +
         `${serviceRecord.oil_type.replace('_', ' ')} (${serviceRecord.oil_viscosity}) done at ${serviceRecord.mileage_at_service} mi. ` +
-        `Next due: ${serviceRecord.next_service_mileage_due} on ${new Date(serviceRecord.next_service_date_due).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}. ` +
+        `Next due: ${serviceRecord.next_service_mileage_due} on ${parseLocalDateFromYMD(serviceRecord.next_service_date_due).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}. ` +
         "Thank you for choosing Montebello Lube N' Tune – 2130 W Beverly Blvd. Mon–Sat 8–5. (323) 727-2883. " +
         "Reply STOP to unsubscribe."
     );
     document.getElementById('composer_message').value = immediateMessage;
 
     // Show reminder details
-    const formattedNextDate = new Date(serviceRecord.next_service_date_due).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const formattedNextDate = parseLocalDateFromYMD(serviceRecord.next_service_date_due).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     document.getElementById('reminder-date').textContent = formattedNextDate;
     document.getElementById('reminder-mileage').textContent = serviceRecord.next_service_mileage_due;
     const oilHuman = serviceRecord.oil_type ? serviceRecord.oil_type.replace(/_/g, ' ') : '';
