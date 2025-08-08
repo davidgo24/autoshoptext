@@ -39,4 +39,16 @@ async def add_service_record(record_in: ServiceRecordCreate, session: AsyncSessi
     await session.commit()
     await session.refresh(record)
 
+    # Cancel any pending reminders for this VIN to avoid outdated messages
+    pending_q = await session.execute(
+        select(ScheduledMessage).where(
+            ScheduledMessage.vin_id == vin.id,
+            ScheduledMessage.status == "pending"
+        )
+    )
+    for msg in pending_q.scalars().all():
+        msg.status = "canceled"
+        session.add(msg)
+    await session.commit()
+
     return record

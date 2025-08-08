@@ -8,9 +8,61 @@ from app.models.vin import VIN
 from app.models.contact import Contact
 from app.models.scheduled_message import ScheduledMessage
 from app.schemas.message.send_message import SendMessageRequest
-from datetime import datetime
+from datetime import datetime, timedelta, time
+from zoneinfo import ZoneInfo
 
 router = APIRouter()
+
+# ---- Helpers ----
+
+def format_date(dt: datetime) -> str:
+    try:
+        return dt.strftime("%b %d, %Y")
+    except Exception:
+        return str(dt)
+
+
+def humanize_oil_type(oil_type: str) -> str:
+    if not oil_type:
+        return ""
+    return oil_type.replace('_', ' ').title()
+
+
+@router.post("/message/{message_id}/cancel")
+async def cancel_scheduled_message(message_id: int, session: AsyncSession = Depends(get_session)):
+    msg = await session.get(ScheduledMessage, message_id)
+    if not msg:
+        raise HTTPException(status_code=404, detail="Scheduled message not found")
+    if msg.status != "pending":
+        raise HTTPException(status_code=400, detail="Only pending messages can be canceled")
+    msg.status = "canceled"
+    session.add(msg)
+    await session.commit()
+    return {"success": True, "message": f"Message {message_id} canceled"}
+
+
+@router.post("/vin/{vin_id}/cancel-pending")
+async def cancel_pending_reminders_for_vin(vin_id: int, session: AsyncSession = Depends(get_session)):
+    vin = await session.get(VIN, vin_id)
+    if not vin:
+        raise HTTPException(status_code=404, detail="VIN not found")
+    result = await session.execute(
+        select(ScheduledMessage).where(
+            ScheduledMessage.vin_id == vin_id,
+            ScheduledMessage.status == "pending"
+        )
+    )
+    msgs = result.scalars().all()
+    count = 0
+    for m in msgs:
+        # Treat only reminders (by content heuristic) to avoid touching immediate copies
+        if "reminder" in (m.message_content or "").lower() or True:
+            m.status = "canceled"
+            session.add(m)
+            count += 1
+    await session.commit()
+    return {"success": True, "canceled": count}
+
 
 @router.get("/all-outbound")
 async def get_all_outbound_messages(
@@ -58,23 +110,44 @@ async def get_all_outbound_messages(
         "messages": message_list
     }
 
+@router.get("/service-record/{service_record_id}/pickup-sent")
+async def has_pickup_been_sent_for_service_record(
+    service_record_id: int, session: AsyncSession = Depends(get_session)
+):
+    """Return whether an immediate pickup message has been sent for the given service record."""
+    # A pickup message is any message tied to this service_record_id that is not a reminder (by content heuristic)
+    result = await session.execute(
+        select(ScheduledMessage)
+        .where(
+            ScheduledMessage.service_record_id == service_record_id,
+        )
+        .order_by(ScheduledMessage.scheduled_time.desc())
+    )
+    messages = result.scalars().all()
+    pickup_exists = any(not m.is_reminder for m in messages)
+    return {"service_record_id": service_record_id, "pickup_sent": pickup_exists}
+
 @router.get("/pickup-messages")
 async def get_pickup_messages(
     date: str = None, session: AsyncSession = Depends(get_session)
 ):
     """Get all pickup messages across all VINs, optionally filtered by date"""
-    from datetime import datetime, date as date_type
     
     # Build the query for pickup messages (messages that don't contain "reminder")
     query = select(ScheduledMessage).where(
-        ~ScheduledMessage.message_content.ilike("%reminder%")
+        ScheduledMessage.is_reminder == False
     ).order_by(ScheduledMessage.scheduled_time.desc())
     
     # Add date filter if provided
     if date:
         try:
             filter_date = datetime.strptime(date, "%Y-%m-%d").date()
-            query = query.where(ScheduledMessage.scheduled_time >= filter_date)
+            start = datetime.combine(filter_date, datetime.min.time())
+            end = start + timedelta(days=1)
+            query = query.where(
+                ScheduledMessage.scheduled_time >= start,
+                ScheduledMessage.scheduled_time < end,
+            )
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
     
@@ -110,18 +183,22 @@ async def get_reminder_messages(
     date: str = None, session: AsyncSession = Depends(get_session)
 ):
     """Get all reminder messages across all VINs, optionally filtered by date"""
-    from datetime import datetime, date as date_type
     
     # Build the query for reminder messages (messages that contain "reminder")
     query = select(ScheduledMessage).where(
-        ScheduledMessage.message_content.ilike("%reminder%")
+        ScheduledMessage.is_reminder == True
     ).order_by(ScheduledMessage.scheduled_time.desc())
     
     # Add date filter if provided
     if date:
         try:
             filter_date = datetime.strptime(date, "%Y-%m-%d").date()
-            query = query.where(ScheduledMessage.scheduled_time >= filter_date)
+            start = datetime.combine(filter_date, datetime.min.time())
+            end = start + timedelta(days=1)
+            query = query.where(
+                ScheduledMessage.scheduled_time >= start,
+                ScheduledMessage.scheduled_time < end,
+            )
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
     
@@ -151,6 +228,45 @@ async def get_reminder_messages(
         "total_messages": len(message_list),
         "messages": message_list
     }
+
+@router.get("/reminder-messages-created")
+async def get_reminder_messages_created(
+    date: str = None, session: AsyncSession = Depends(get_session)
+):
+    """Get reminder messages by creation date (when they were scheduled), not by scheduled_time."""
+    query = select(ScheduledMessage).where(
+        ScheduledMessage.is_reminder == True
+    ).order_by(ScheduledMessage.created_at.desc())
+    if date:
+        try:
+            filter_date = datetime.strptime(date, "%Y-%m-%d").date()
+            start = datetime.combine(filter_date, datetime.min.time())
+            end = start + timedelta(days=1)
+            query = query.where(
+                ScheduledMessage.created_at >= start,
+                ScheduledMessage.created_at < end,
+            )
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    result = await session.execute(query)
+    messages = result.scalars().all()
+    message_list = []
+    for msg in messages:
+        contact = await session.get(Contact, msg.contact_id)
+        vin = await session.get(VIN, msg.vin_id)
+        message_list.append({
+            "id": msg.id,
+            "contact_name": contact.name if contact else "Unknown",
+            "contact_phone": contact.phone_number if contact else "Unknown",
+            "vin_string": vin.vin if vin else "Unknown",
+            "vehicle_info": f"{vin.year} {vin.make} {vin.model}" if vin else "Unknown",
+            "message_content": msg.message_content,
+            "scheduled_time": msg.scheduled_time,
+            "created_at": msg.created_at,
+            "sent_at": msg.sent_at,
+            "status": msg.status
+        })
+    return {"date_filter": date, "total_messages": len(message_list), "messages": message_list}
 
 @router.get("/vin/{vin_id}/history")
 async def get_message_history_for_vin(
@@ -207,7 +323,7 @@ async def get_pickup_history_for_vin(
         select(ScheduledMessage)
         .where(
             ScheduledMessage.vin_id == vin_id,
-            ~ScheduledMessage.message_content.ilike("%reminder%")
+            ScheduledMessage.is_reminder == False
         )
         .order_by(ScheduledMessage.scheduled_time.desc())
     )
@@ -249,7 +365,7 @@ async def get_reminder_history_for_vin(
         select(ScheduledMessage)
         .where(
             ScheduledMessage.vin_id == vin_id,
-            ScheduledMessage.message_content.ilike("%reminder%")
+            ScheduledMessage.is_reminder == True
         )
         .order_by(ScheduledMessage.scheduled_time.desc())
     )
@@ -293,7 +409,7 @@ async def send_pickup_message(
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
 
-    # 2. Send immediate pickup message
+    # 2. Send immediate pickup message (content provided by client prefilled)
     sms_sent = False
     if contact.phone_number:
         try:
@@ -307,31 +423,46 @@ async def send_pickup_message(
     pickup_msg = ScheduledMessage(
         contact_id=contact.id,
         vin_id=vin.id,
+        service_record_id=service_record.id,
         message_content=request.immediate_message_content,
         scheduled_time=datetime.now(),  # Immediate message
         sent_at=datetime.now() if sms_sent else None,
-        status="sent" if sms_sent else "failed"
+        status="sent" if sms_sent else "failed",
+        is_reminder=False
     )
     session.add(pickup_msg)
 
-    # 4. Schedule future reminder message
-    reminder_message_template = (
-        "Reminder: Hi {name}, your {make} {model} ({vin_last_6}) is due for service on {next_date_due} or at {next_mileage_due} miles."
+    # 4. Schedule future reminder message using new template
+    # Find the last service (before this one) for mileage reference
+    last_service_result = await session.execute(
+        select(ServiceRecord)
+        .where(ServiceRecord.vin_id == vin.id, ServiceRecord.id != service_record.id)
+        .order_by(ServiceRecord.service_date.desc())
     )
-    personalized_reminder_message = reminder_message_template.format(
-        name=contact.name,
-        make=vin.make,
-        model=vin.model,
-        vin_last_6=vin.vin[-6:],
-        next_date_due=service_record.next_service_date_due.strftime("%Y-%m-%d"),
-        next_mileage_due=service_record.next_service_mileage_due
+    last_service = last_service_result.scalars().first()
+    last_mileage = last_service.mileage_at_service if last_service else service_record.mileage_at_service
+
+    reminder_message = (
+        f"Hi {contact.name}, friendly heads up: your {vin.make} {vin.model} is due for service at "
+        f"{service_record.next_service_mileage_due} mi or by {format_date(service_record.next_service_date_due)}. "
+        "We'll be here when you're ready - Montebello Lube N' Tune, 2130 W Beverly Blvd. Mon-Sat 8-5. (323) 727-2883. "
+        "Reply STOP to unsubscribe."
     )
 
     scheduled_msg = ScheduledMessage(
         contact_id=contact.id,
         vin_id=vin.id,
-        message_content=personalized_reminder_message,
-        scheduled_time=datetime.combine(service_record.next_service_date_due, datetime.min.time())
+        service_record_id=service_record.id,
+        message_content=reminder_message,
+        # Schedule at 11:00 AM America/Los_Angeles; store as naive UTC for comparison
+        scheduled_time=(
+            datetime.combine(
+                service_record.next_service_date_due,
+                time(11, 0, 0),
+                tzinfo=ZoneInfo("America/Los_Angeles")
+            ).astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+        ),
+        is_reminder=True
     )
     session.add(scheduled_msg)
     await session.commit()
@@ -342,3 +473,42 @@ async def send_pickup_message(
         "sms_sent": sms_sent,
         "reminder_scheduled": True
     }
+
+@router.get("/sent-reminders")
+async def get_sent_reminders(
+    date: str = None, session: AsyncSession = Depends(get_session)
+):
+    """Get sent reminder messages across all VINs, optionally filtered by date"""
+    query = select(ScheduledMessage).where(
+        ScheduledMessage.is_reminder == True,
+        ScheduledMessage.status == "sent"
+    ).order_by(ScheduledMessage.sent_at.desc())
+    if date:
+        try:
+            filter_date = datetime.strptime(date, "%Y-%m-%d").date()
+            start = datetime.combine(filter_date, datetime.min.time())
+            end = start + timedelta(days=1)
+            query = query.where(
+                ScheduledMessage.sent_at >= start,
+                ScheduledMessage.sent_at < end,
+            )
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    result = await session.execute(query)
+    messages = result.scalars().all()
+    message_list = []
+    for msg in messages:
+        contact = await session.get(Contact, msg.contact_id)
+        vin = await session.get(VIN, msg.vin_id)
+        message_list.append({
+            "id": msg.id,
+            "contact_name": contact.name if contact else "Unknown",
+            "contact_phone": contact.phone_number if contact else "Unknown",
+            "vin_string": vin.vin if vin else "Unknown",
+            "vehicle_info": f"{vin.year} {vin.make} {vin.model}" if vin else "Unknown",
+            "message_content": msg.message_content,
+            "scheduled_time": msg.scheduled_time,
+            "sent_at": msg.sent_at,
+            "status": msg.status
+        })
+    return {"date_filter": date, "total_messages": len(message_list), "messages": message_list}

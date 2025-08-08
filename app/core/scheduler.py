@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_session
@@ -12,7 +12,8 @@ async def send_scheduled_messages():
     print("Scheduler: Checking for scheduled messages...")
     async for session in get_session():
         try:
-            now = datetime.now()
+            # Stored scheduled_time is naive UTC; compare to current UTC naive
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
             # Select messages that are due and pending
             result = await session.execute(
                 select(ScheduledMessage).where(
@@ -32,7 +33,7 @@ async def send_scheduled_messages():
                     success = await send_sms(contact.phone_number, msg.message_content)
                     if success:
                         msg.status = "sent"
-                        msg.sent_at = datetime.now()
+                        msg.sent_at = datetime.now(timezone.utc).replace(tzinfo=None)
                         print(f"Scheduler: Message {msg.id} sent successfully.")
                     else:
                         msg.status = "failed"
