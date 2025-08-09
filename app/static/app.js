@@ -1102,7 +1102,7 @@ function showPickupMessageComposer(serviceRecord, vin, contact) {
         `Hi ${contact.name}, your ${vin.make} ${vin.model} is ready! ` +
         `${serviceRecord.oil_type.replace('_', ' ')} (${serviceRecord.oil_viscosity}) done at ${serviceRecord.mileage_at_service} mi. ` +
         `Next due: ${serviceRecord.next_service_mileage_due} on ${parseLocalDateFromYMD(serviceRecord.next_service_date_due).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}. ` +
-        "Thank you for choosing Montebello Lube N' Tune - 2130 W Beverly Blvd. Mon-Sat 8-5. (323) 727-2883. " +
+        "Thank you for choosing Montebello Lube and Tune - 2130 W Beverly Blvd. Mon-Sat 8-5. (323) 727-2883. " +
         "Reply STOP to unsubscribe."
     );
     document.getElementById('composer_message').value = immediateMessage;
@@ -1117,7 +1117,7 @@ function showPickupMessageComposer(serviceRecord, vin, contact) {
         `Hi ${contact.name}! Your ${vin.model} is due soon: ` +
         `${serviceRecord.next_service_mileage_due} mi on ${formattedNextDate}. ` +
         `Last: ${lastMileage} with ${oilHuman} (${serviceRecord.oil_viscosity}). ` +
-        "Thank you for choosing Montebello Lube N' Tune - 2130 W Beverly Blvd. Mon-Sat 8-5. (323) 727-2883. " +
+        "Thank you for choosing Montebello Lube and Tune - 2130 W Beverly Blvd. Mon-Sat 8-5. (323) 727-2883. " +
         "Reply STOP to unsubscribe."
     );
     // Render with line breaks removed for concise SMS

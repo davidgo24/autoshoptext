@@ -72,6 +72,8 @@ import os
 async def root():
     return FileResponse(os.path.join(os.path.dirname(__file__), "static", "login.html"))
 
+
+
 # Main application page (authentication handled by JavaScript)
 @app.get("/app", response_class=HTMLResponse)
 async def main_app(request: Request):
