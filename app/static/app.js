@@ -162,6 +162,9 @@ async function updateNotificationBadge() {
 // Check for new messages periodically
 setInterval(updateNotificationBadge, 20000); // Check every 20 seconds
 
+// Also check once on initial page load
+document.addEventListener('DOMContentLoaded', updateNotificationBadge);
+
 async function loadMasterMessages(dateFilter = null) {
     const content = document.getElementById('master-message-content');
     if (!content) return;
