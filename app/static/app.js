@@ -1115,8 +1115,8 @@ function withCancelMarkup(messagesHtml, messages) {
             </div>
             <div class="message-details">
                 <small>
-                    <strong>Scheduled:</strong> ${new Date(msg.scheduled_time).toLocaleString()}
-                    ${msg.sent_at ? `<br><strong>Sent:</strong> ${new Date(msg.sent_at).toLocaleString()}` : ''}
+                    <strong>Scheduled:</strong> ${dateFromUtcNaiveString(msg.scheduled_time).toLocaleString()}
+                    ${msg.sent_at ? `<br><strong>Sent:</strong> ${dateFromUtcNaiveString(msg.sent_at).toLocaleString()}` : ''}
                 </small>
             </div>
         </div>

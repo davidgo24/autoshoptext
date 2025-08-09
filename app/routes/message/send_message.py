@@ -449,6 +449,9 @@ async def send_pickup_message(
         "Reply STOP to unsubscribe."
     )
 
+    # Calculate the reminder date to be 17 days before the actual due date
+    reminder_send_date = service_record.next_service_date_due - timedelta(days=17)
+
     scheduled_msg = ScheduledMessage(
         contact_id=contact.id,
         vin_id=vin.id,
@@ -457,7 +460,7 @@ async def send_pickup_message(
         # Schedule at 11:00 AM America/Los_Angeles; store as naive UTC for comparison
         scheduled_time=(
             datetime.combine(
-                service_record.next_service_date_due,
+                reminder_send_date,
                 time(11, 0, 0),
                 tzinfo=ZoneInfo("America/Los_Angeles")
             ).astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
