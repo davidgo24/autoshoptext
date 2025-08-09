@@ -1,33 +1,56 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AutoShop</title>
-    <link rel="stylesheet" href="style.css?v=1.1">
+    <link rel="stylesheet" href="/static/style.css?v=1.1">
+    <script defer src="/static/app.js"></script>
 </head>
 <body>
-    <h1>Text PitStop 🏎️🏁</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1>Text PitStop 🏎️🏁</h1>
+        <button onclick="logout()" style="background-color: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer;">
+            🚪 Logout
+        </button>
+    </div>
 
     <div id="vin-lookup">
-        <h2>VIN Lookup</h2>
+        <h2>🏎️ VIN Lookup</h2>
         <form id="get-vin-profile-form">
             <input type="text" id="vin_or_last6" name="vin_or_last6" placeholder="Full VIN or Last 6" required>
-            <button type="submit">Search</button>
+            <button type="submit">🔍 Search</button>
         </form>
-        <div style="text-align: center; margin-top: 20px;">
-            <button onclick="showMasterMessageView()" style="background-color: #007bff; margin-right: 10px;">📊 Master Message View</button>
-            <button onclick="showInboundMessages()" style="background-color: #28a745; position: relative;">
-                📥 Inbound Messages
-                <span id="inbound-notification-badge" class="notification-badge" style="display: none;"></span>
-            </button>
+        
+        <div style="margin: 30px 0; padding: 20px; background: #f8f9fa; border-radius: 10px; border: 1px solid #dee2e6;">
+            <h3 style="margin-top: 0; color: #495057;">📋 Quick Actions</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <button onclick="showMasterMessageView()" style="background-color: #007bff; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 14px; cursor: pointer;">
+                    📊 Master Message View
+                </button>
+                <button onclick="showInboundMessages()" style="background-color: #28a745; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 14px; cursor: pointer; position: relative;">
+                    📥 Inbound Messages
+                    <span id="inbound-notification-badge" class="notification-badge" style="display: none;"></span>
+                </button>
+            </div>
+            <div style="text-align: center; margin-top: 10px;">
+                <small style="color: #6c757d;">💡 Tip: Enter full VIN or just the last 6 digits to search</small>
+            </div>
         </div>
     </div>
 
     <div id="vin-profile"></div>
 
     <div id="vin-creation" style="display: none;">
-        <h2>Create VIN Profile</h2>
+        <div style="margin-bottom: 15px; padding: 8px 12px; background: #f8f9fa; border-radius: 5px; border-left: 3px solid #007bff; font-size: 14px; color: #495057;">
+            🗺️ <strong>Navigation:</strong> 
+            <a href="javascript:backToMain()" style="color: #007bff; text-decoration: none;">Home</a> 
+            → <span style="color: #6c757d;">Create New VIN</span>
+        </div>
+        <div style="text-align: center; margin-bottom: 15px;">
+            <button onclick="backToMain()" style="background-color: #6c757d; padding: 8px 16px; border: none; border-radius: 5px; color: white;">← Back to Main</button>
+        </div>
+        <h2>🆕 Create VIN Profile</h2>
         <form id="create-vin-form">
             <input type="text" id="vin" name="vin" placeholder="VIN (17 characters)" required minlength="17" maxlength="17">
             <button type="button" id="decode-vin-btn">Decode VIN</button>
@@ -83,9 +106,17 @@
 
     <!-- Master Message View -->
     <div id="master-message-view" style="display: none;">
+        <div style="margin-bottom: 15px; padding: 8px 12px; background: #f8f9fa; border-radius: 5px; border-left: 3px solid #007bff; font-size: 14px; color: #495057;">
+            🗺️ <strong>Navigation:</strong> 
+            <a href="javascript:backToMain()" style="color: #007bff; text-decoration: none;">Home</a> 
+            → <span style="color: #6c757d;">Master Message View</span>
+            <div style="float: right;">
+                <a href="javascript:showInboundMessages()" style="color: #007bff; text-decoration: none;">📥 Quick: Inbound Messages</a>
+            </div>
+        </div>
         <h2>📊 Master Message View</h2>
         <div style="text-align: center; margin-bottom: 20px;">
-            <button onclick="window.location.href='./'" style="background-color: #6c757d; margin-bottom: 10px;">← Back to Main</button>
+            <button onclick="backToMain()" style="background-color: #6c757d; margin-bottom: 10px;">← Back to Main</button>
         </div>
         
         <div style="margin: 20px 0;">
@@ -99,7 +130,9 @@
         <div style="margin: 20px 0; border-bottom: 2px solid #dee2e6;">
             <button id="tab-pickup" onclick="switchToTab('pickup')" style="background-color: #6c757d; color: white; border: none; padding: 10px 20px; margin-right: 5px; border-radius: 5px 5px 0 0;">📱 Pickup Messages</button>
             <button id="tab-reminder" onclick="switchToTab('reminder')" style="background-color: #007bff; color: white; border: none; padding: 10px 20px; margin-right: 5px; border-radius: 5px 5px 0 0;">🔄 Reminder Messages</button>
-            <button id="tab-sent-reminders" onclick="switchToTab('sent')" style="background-color: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 5px 5px 0 0;">✅ Sent Reminders</button>
+            <button id="tab-sent-reminders" onclick="switchToTab('sent')" style="background-color: #6c757d; color: white; border: none; padding: 10px 20px; margin-right: 5px; border-radius: 5px 5px 0 0;">✅ Sent Reminders</button>
+            <button id="tab-inbound" onclick="switchToTab('inbound')" style="background-color: #6c757d; color: white; border: none; padding: 10px 20px; margin-right: 5px; border-radius: 5px 5px 0 0;">📥 Inbound Messages</button>
+            <button id="tab-costs" onclick="switchToTab('costs')" style="background-color: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 5px 5px 0 0;">💰 Costs</button>
         </div>
         
         <div id="master-message-content">
@@ -132,6 +165,23 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set default service date to today
+            const serviceDateInput = document.getElementById('service_date');
+            if (serviceDateInput) {
+                serviceDateInput.value = new Date().toISOString().split('T')[0];
+            }
+
+            // Auto-calculate next service date (6 months from today)
+            const nextServiceDateInput = document.getElementById('next_service_date_due');
+            if (nextServiceDateInput) {
+                const nextDate = new Date();
+                nextDate.setMonth(nextDate.getMonth() + 6);
+                nextServiceDateInput.value = nextDate.toISOString().split('T')[0];
+            }
+        });
+    </script>
 </body>
 </html>

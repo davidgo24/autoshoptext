@@ -11,9 +11,14 @@ async def decode_vin(vin: str):
     
     url = f"https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/{vin}?format=json"
     
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url)
-        data = response.json()
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            response = await client.get(url)
+            data = response.json()
+        except httpx.TimeoutException:
+            raise HTTPException(status_code=504, detail="NHTSA API timeout - please try again later.")
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=503, detail=f"NHTSA API unavailable: {str(e)}")
 
     if not data or "Results" not in data:
         raise HTTPException(status_code=500, detail="Failed to decode VIN.")

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AutoShop Login</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .login-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 1.5rem;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #555;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        input[type="text"]:focus, input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+        }
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .error-message {
+            color: #e74c3c;
+            text-align: center;
+            margin-top: 1rem;
+            display: none;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 1rem;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h2>🏎️ AutoShop Login</h2>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" placeholder="Enter your username" required />
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" placeholder="Enter your password" required />
+            </div>
+            <button type="submit" id="loginButton">Login</button>
+            <div class="loading" id="loading">Logging in...</div>
+            <div class="error-message" id="errorMessage"></div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById("loginForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const loginButton = document.getElementById("loginButton");
+            const loading = document.getElementById("loading");
+            const errorMessage = document.getElementById("errorMessage");
+            const username = document.getElementById("username").value;
+            const password = document.getElementById("password").value;
+
+            // Show loading state
+            loginButton.disabled = true;
+            loading.style.display = "block";
+            errorMessage.style.display = "none";
+
+            try {
+                const token = btoa(`${username}:${password}`);
+
+                // Try to access a protected endpoint
+                const res = await fetch("/protected-test", {
+                    headers: { "Authorization": `Basic ${token}` }
+                });
+
+                if (res.ok) {
+                    localStorage.setItem("authToken", token);
+                    window.location.href = "/app";
+                } else {
+                    errorMessage.textContent = "Invalid username or password";
+                    errorMessage.style.display = "block";
+                }
+            } catch (error) {
+                errorMessage.textContent = "Network error. Please try again.";
+                errorMessage.style.display = "block";
+            } finally {
+                // Hide loading state
+                loginButton.disabled = false;
+                loading.style.display = "none";
+            }
+        });
+
+        // Clear error message when user starts typing
+        document.getElementById("username").addEventListener("input", () => {
+            document.getElementById("errorMessage").style.display = "none";
+        });
+        document.getElementById("password").addEventListener("input", () => {
+            document.getElementById("errorMessage").style.display = "none";
+        });
+    </script>
+</body>
+</html>

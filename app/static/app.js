@@ -1,3 +1,98 @@
+window.addEventListener("load", async () => {
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+        window.location.href = "/";
+        return;
+    }
+    
+    // Verify token is still valid
+    try {
+        const response = await fetch("/protected-test", {
+            headers: { "Authorization": `Basic ${token}` }
+        });
+        if (!response.ok) {
+            localStorage.removeItem("authToken");
+            window.location.href = "/";
+            return;
+        }
+    } catch (error) {
+        console.error("Auth check failed:", error);
+        localStorage.removeItem("authToken");
+        window.location.href = "/";
+        return;
+    }
+});
+
+// Helper function for all future API calls
+async function apiFetch(url, method = 'GET', body = null) {
+    const token = localStorage.getItem("authToken");
+    
+    const options = {
+        method: method,
+        headers: {
+            "Authorization": `Basic ${token}`,
+            "Content-Type": "application/json"
+        }
+    };
+    
+    if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+        options.body = JSON.stringify(body);
+    }
+    
+    try {
+        const response = await fetch(url, options);
+        
+        // Handle authentication errors
+        if (response.status === 401) {
+            localStorage.removeItem("authToken");
+            window.location.href = "/";
+            return { success: false, error: { detail: "Authentication required" } };
+        }
+        
+        // Handle other HTTP errors
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: "Unknown error" }));
+            return { success: false, error: errorData };
+        }
+        
+        // Success case
+        const data = await response.json();
+        return { success: true, data: data };
+        
+    } catch (error) {
+        console.error("API fetch error:", error);
+        return { success: false, error: { detail: "Network error" } };
+    }
+}
+
+// Global logout function
+function logout() {
+    if (confirm("Are you sure you want to logout?")) {
+        localStorage.removeItem("authToken");
+        window.location.href = "/";
+    }
+}
+
+// Global back to main function
+function backToMain() {
+    // Hide all other sections
+    const vinLookupDiv = document.getElementById("vin-lookup");
+    const vinProfileDiv = document.getElementById("vin-profile");
+    const vinCreationDiv = document.getElementById("vin-creation");
+    const serviceRecordCreationDiv = document.getElementById("service-record-creation");
+    const pickupMessageSection = document.getElementById("pickup-message-section");
+    const masterView = document.getElementById('master-message-view');
+    
+    if (vinProfileDiv) vinProfileDiv.style.display = 'none';
+    if (vinCreationDiv) vinCreationDiv.style.display = 'none';
+    if (serviceRecordCreationDiv) serviceRecordCreationDiv.style.display = 'none';
+    if (pickupMessageSection) pickupMessageSection.style.display = 'none';
+    if (masterView) masterView.style.display = 'none';
+    
+    // Show main VIN lookup
+    if (vinLookupDiv) vinLookupDiv.style.display = 'block';
+}
+
 // Global functions for HTML onclick handlers
 function showMasterMessageView() {
     // Hide all other sections
@@ -19,6 +114,25 @@ function showMasterMessageView() {
         masterView.style.display = 'block';
         // Default to reminder tab
         switchToTab('reminder');
+    }
+}
+
+function showInboundMessages() {
+    // Show Master Message View and switch to inbound tab
+    showMasterMessageView();
+    switchToTab('inbound');
+}
+
+function searchVin(vinString) {
+    // Helper function to search for a specific VIN
+    backToMain(); // First go back to main
+    const vinInput = document.getElementById("vin_or_last6");
+    if (vinInput) {
+        vinInput.value = vinString;
+        const getVinProfileForm = document.getElementById("get-vin-profile-form");
+        if (getVinProfileForm) {
+            getVinProfileForm.dispatchEvent(new Event("submit"));
+        }
     }
 }
 
@@ -46,6 +160,8 @@ function switchToTab(tabName) {
     document.getElementById('tab-pickup').style.backgroundColor = tabName === 'pickup' ? '#007bff' : '#6c757d';
     document.getElementById('tab-reminder').style.backgroundColor = tabName === 'reminder' ? '#007bff' : '#6c757d';
     document.getElementById('tab-sent-reminders').style.backgroundColor = tabName === 'sent' ? '#007bff' : '#6c757d';
+    document.getElementById('tab-inbound').style.backgroundColor = tabName === 'inbound' ? '#007bff' : '#6c757d';
+    document.getElementById('tab-costs').style.backgroundColor = tabName === 'costs' ? '#007bff' : '#6c757d';
     
     // Load the appropriate message type
     loadCurrentMessageType();
@@ -68,6 +184,12 @@ function loadCurrentMessageType(dateFilter = null) {
         case 'sent':
             loadSentReminderMessages(dateFilter);
             break;
+        case 'inbound':
+            loadInboundMessagesInTab(dateFilter);
+            break;
+        case 'costs':
+            loadCostsSummary(dateFilter);
+            break;
         default:
             loadReminderMessages(dateFilter);
             break;
@@ -77,7 +199,7 @@ function loadCurrentMessageType(dateFilter = null) {
 async function showInboundMessages() {
     // Mark all messages as read when the view is opened
     try {
-        await makeApiCall('/messages/inbound/mark-as-read', 'POST');
+        await apiFetch('/messages/inbound/mark-as-read', 'POST');
         updateNotificationBadge(); // Update badge immediately
     } catch (error) {
         console.error("Error marking messages as read:", error);
@@ -105,7 +227,7 @@ async function showInboundMessages() {
     content.innerHTML = '<p>Loading inbound messages...</p>';
 
     try {
-        const result = await makeApiCall('/messages/inbound');
+        const result = await apiFetch('/messages/inbound');
         if (result.success) {
             const data = result.data;
             if (data.messages.length === 0) {
@@ -135,7 +257,57 @@ async function showInboundMessages() {
                 </div>
             `;
         } else {
-            content.innerHTML = `<p>Error loading inbound messages: ${result.error.detail}</p>`;
+            content.innerHTML = `<p>Error loading inbound messages: ${result.error?.detail || 'Unknown error'}</p>`;
+        }
+    } catch (error) {
+        console.error("Error loading inbound messages:", error);
+        content.innerHTML = '<p>An error occurred while loading inbound messages.</p>';
+    }
+}
+
+async function loadInboundMessagesInTab(dateFilter = null) {
+    const content = document.getElementById('master-message-content');
+    if (!content) return;
+    content.innerHTML = '<p>Loading inbound messages...</p>';
+
+    try {
+        // Mark all messages as read when viewing
+        await apiFetch('/messages/inbound/mark-as-read', 'POST');
+        updateNotificationBadge(); // Update badge immediately
+
+        const url = dateFilter ? `/messages/inbound?date=${dateFilter}` : '/messages/inbound';
+        const result = await apiFetch(url);
+        
+        if (result.success) {
+            const data = result.data;
+            if (data.messages.length === 0) {
+                content.innerHTML = '<p>No inbound messages found for the selected criteria.</p>';
+                return;
+            }
+
+            const messagesHtml = data.messages.map(msg => `
+                <div class="master-message-item inbound">
+                    <div class="message-header">
+                        <strong>From: ${msg.contact_name || 'Unknown'}</strong> (${msg.from_number})
+                    </div>
+                    <div class="message-content">
+                        <p>${msg.body}</p>
+                    </div>
+                    <div class="message-details">
+                        <small><strong>Received:</strong> ${dateFromUtcNaiveString(msg.created_at).toLocaleString()}</small>
+                    </div>
+                </div>
+            `).join('');
+
+            content.innerHTML = `
+                <div class="master-message-container">
+                    <h3>📥 Inbound Messages ${data.date_filter ? `(${data.date_filter})` : '(All Time)'}</h3>
+                    <p><strong>Total Messages:</strong> ${data.messages.length}</p>
+                    ${messagesHtml}
+                </div>
+            `;
+        } else {
+            content.innerHTML = `<p>Error loading inbound messages: ${result.error?.detail || 'Unknown error'}</p>`;
         }
     } catch (error) {
         console.error("Error loading inbound messages:", error);
@@ -146,7 +318,7 @@ async function showInboundMessages() {
 // --- Notification System ---
 async function updateNotificationBadge() {
     try {
-        const result = await makeApiCall('/messages/inbound/unread-count');
+        const result = await apiFetch('/messages/inbound/unread-count');
         const badge = document.getElementById('inbound-notification-badge');
         const inboundButton = document.querySelector('button[onclick="showInboundMessages()"]');
 
@@ -181,7 +353,7 @@ async function loadMasterMessages(dateFilter = null) {
 
     try {
         const url = dateFilter ? `/messages/all-outbound?date=${dateFilter}` : '/messages/all-outbound';
-        const result = await makeApiCall(url);
+        const result = await apiFetch(url);
         
         if (result.success) {
             const data = result.data;
@@ -204,8 +376,8 @@ async function loadMasterMessages(dateFilter = null) {
                     </div>
                     <div class="message-details">
                         <small>
-                            <strong>Scheduled:</strong> ${new Date(msg.scheduled_time).toLocaleString()}
-                            ${msg.sent_at ? `<br><strong>Sent:</strong> ${new Date(msg.sent_at).toLocaleString()}` : ''}
+                            <strong>Scheduled:</strong> ${dateFromUtcNaiveString(msg.scheduled_time).toLocaleString()}
+                            ${msg.sent_at ? `<br><strong>Sent:</strong> ${dateFromUtcNaiveString(msg.sent_at).toLocaleString()}` : ''}
                         </small>
                     </div>
                 </div>
@@ -219,7 +391,7 @@ async function loadMasterMessages(dateFilter = null) {
                 </div>
             `;
         } else {
-            content.innerHTML = `<p>Error loading messages: ${result.error.detail}</p>`;
+            content.innerHTML = `<p>Error loading messages: ${result.error?.detail || 'Unknown error'}</p>`;
         }
     } catch (error) {
         console.error("Error loading master messages:", error);
@@ -235,7 +407,7 @@ async function loadPickupMessages(dateFilter = null) {
 
     try {
         const url = dateFilter ? `/messages/pickup-messages?date=${dateFilter}` : '/messages/pickup-messages';
-        const result = await makeApiCall(url);
+        const result = await apiFetch(url);
         
         if (result.success) {
             const data = result.data;
@@ -258,8 +430,8 @@ async function loadPickupMessages(dateFilter = null) {
                     </div>
                     <div class="message-details">
                         <small>
-                            <strong>Sent:</strong> ${new Date(msg.scheduled_time).toLocaleString()}
-                            ${msg.sent_at ? `<br><strong>Delivered:</strong> ${new Date(msg.sent_at).toLocaleString()}` : ''}
+                            <strong>Sent:</strong> ${dateFromUtcNaiveString(msg.scheduled_time).toLocaleString()}
+                            ${msg.sent_at ? `<br><strong>Delivered:</strong> ${dateFromUtcNaiveString(msg.sent_at).toLocaleString()}` : ''}
                         </small>
                     </div>
                 </div>
@@ -273,7 +445,7 @@ async function loadPickupMessages(dateFilter = null) {
                 </div>
             `;
         } else {
-            content.innerHTML = `<p>Error loading pickup messages: ${result.error.detail}</p>`;
+            content.innerHTML = `<p>Error loading pickup messages: ${result.error?.detail || 'Unknown error'}</p>`;
         }
     } catch (error) {
         console.error("Error loading pickup messages:", error);
@@ -291,7 +463,7 @@ async function loadReminderMessages(dateFilter = null) {
     try {
         // Default: filter by created_at (when scheduled)
         const url = dateFilter ? `/messages/reminder-messages-created?date=${dateFilter}` : '/messages/reminder-messages-created';
-        const result = await makeApiCall(url);
+        const result = await apiFetch(url);
         
         if (result.success) {
             const data = result.data;
@@ -314,9 +486,9 @@ async function loadReminderMessages(dateFilter = null) {
                     </div>
                     <div class="message-details">
                         <small>
-                            <strong>Scheduled for:</strong> ${new Date(msg.scheduled_time).toLocaleString()}<br>
-                            <strong>Created:</strong> ${msg.created_at ? new Date(msg.created_at).toLocaleString() : '—'}
-                            ${msg.sent_at ? `<br><strong>Sent:</strong> ${new Date(msg.sent_at).toLocaleString()}` : ''}
+                            <strong>Scheduled for:</strong> ${dateFromUtcNaiveString(msg.scheduled_time).toLocaleString()}<br>
+                            <strong>Created:</strong> ${msg.created_at ? dateFromUtcNaiveString(msg.created_at).toLocaleString() : '—'}
+                            ${msg.sent_at ? `<br><strong>Sent:</strong> ${dateFromUtcNaiveString(msg.sent_at).toLocaleString()}` : ''}
                         </small>
                     </div>
                 </div>
@@ -330,7 +502,7 @@ async function loadReminderMessages(dateFilter = null) {
                 </div>
             `;
         } else {
-            content.innerHTML = `<p>Error loading reminder messages: ${result.error.detail}</p>`;
+            content.innerHTML = `<p>Error loading reminder messages: ${result.error?.detail || 'Unknown error'}</p>`;
         }
     } catch (error) {
         console.error("Error loading reminder messages:", error);
@@ -344,13 +516,13 @@ async function loadSentReminderMessages(dateFilter = null) {
     content.innerHTML = '<p>Loading sent reminders...</p>';
     try {
         const url = dateFilter ? `/messages/sent-reminders?date=${dateFilter}` : '/messages/sent-reminders';
-        const result = await makeApiCall(url);
+        const result = await apiFetch(url);
         if (result.success) {
             const data = result.data;
             const html = withCancelMarkup('', data.messages); // no cancel shown because status is sent
             content.innerHTML = `<div class="master-message-container"><h3>✅ Sent Reminders ${data.date_filter ? `(${data.date_filter})` : '(All Time)'}</h3><p><strong>Total:</strong> ${data.total_messages}</p>${html}</div>`;
         } else {
-            content.innerHTML = `<p>Error loading sent reminders: ${result.error.detail}</p>`;
+            content.innerHTML = `<p>Error loading sent reminders: ${result.error?.detail || 'Unknown error'}</p>`;
         }
     } catch (e) {
         console.error('Error loading sent reminders', e);
@@ -358,10 +530,133 @@ async function loadSentReminderMessages(dateFilter = null) {
     }
 }
 
+async function loadCostsSummary(dateFilter = null) {
+    const content = document.getElementById('master-message-content');
+    if (!content) return;
+    content.innerHTML = '<p>Loading cost summary...</p>';
+    
+    try {
+        const url = dateFilter ? `/messages/costs/summary?date=${dateFilter}` : '/messages/costs/summary';
+        const result = await apiFetch(url);
+        
+        if (result.success) {
+            let data = result.data;
+            console.log("Main cost data:", data); // Debug logging
+            
+            // Handle double-wrapped responses
+            if (data.success && data.data) {
+                data = data.data;
+                console.log("Unwrapped data:", data); // Debug logging
+            }
+            
+            console.log("Outbound data:", data.outbound_messages); // Debug logging
+            console.log("Inbound data:", data.inbound_messages); // Debug logging
+            
+            // Load monthly breakdown as well
+            const monthlyResult = await apiFetch('/messages/costs/monthly');
+            let monthlySection = '';
+            
+            console.log("Monthly result:", monthlyResult); // Debug logging
+            
+            // Handle double-wrapped response
+            let monthlyData = monthlyResult.data;
+            if (monthlyData && monthlyData.success && monthlyData.data) {
+                monthlyData = monthlyData.data; // Unwrap the double-wrapped response
+            }
+            
+            if (monthlyResult.success && monthlyData && monthlyData.months) {
+                const monthsWithData = monthlyData.months.filter(month => month.total.count > 0);
+                
+                if (monthsWithData.length > 0) {
+                    const monthlyRows = monthsWithData.map(month => `
+                        <tr>
+                            <td>${month.month_name}</td>
+                            <td>${month.outbound.count}</td>
+                            <td>$${month.outbound.dollars}</td>
+                            <td>${month.inbound.count}</td>
+                            <td>$${month.inbound.dollars}</td>
+                            <td><strong>${month.total.count}</strong></td>
+                            <td><strong>$${month.total.dollars}</strong></td>
+                        </tr>
+                    `).join('');
+                    
+                    monthlySection = `
+                        <div style="margin-top: 30px;">
+                            <h4>📅 Monthly Breakdown (${monthlyData.year})</h4>
+                            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                                <thead>
+                                    <tr style="background-color: #f8f9fa;">
+                                        <th style="padding: 8px; border: 1px solid #dee2e6;">Month</th>
+                                        <th style="padding: 8px; border: 1px solid #dee2e6;">Outbound</th>
+                                        <th style="padding: 8px; border: 1px solid #dee2e6;">Out Cost</th>
+                                        <th style="padding: 8px; border: 1px solid #dee2e6;">Inbound</th>
+                                        <th style="padding: 8px; border: 1px solid #dee2e6;">In Cost</th>
+                                        <th style="padding: 8px; border: 1px solid #dee2e6;">Total Msgs</th>
+                                        <th style="padding: 8px; border: 1px solid #dee2e6;">Total Cost</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${monthlyRows}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                }
+            } else {
+                console.log("Monthly data not available or failed:", monthlyResult);
+                monthlySection = `<div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;"><p><em>Monthly breakdown temporarily unavailable.</em></p></div>`;
+            }
+            
+            content.innerHTML = `
+                <div class="master-message-container">
+                    <h3>💰 SMS Costs ${data.date_filter ? `(${data.date_filter})` : '(All Time)'}</h3>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0;">
+                        <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
+                            <h4 style="margin: 0 0 10px 0; color: #155724;">📤 Outbound Messages</h4>
+                            <p style="margin: 5px 0;"><strong>Count:</strong> ${data.outbound_messages?.count || 0}</p>
+                            <p style="margin: 5px 0;"><strong>Cost:</strong> $${data.outbound_messages?.total_dollars || '0.00'}</p>
+                        </div>
+                        
+                        <div style="background: #e7f3ff; padding: 15px; border-radius: 8px; border-left: 4px solid #007bff;">
+                            <h4 style="margin: 0 0 10px 0; color: #004085;">📥 Inbound Messages</h4>
+                            <p style="margin: 5px 0;"><strong>Count:</strong> ${data.inbound_messages?.count || 0}</p>
+                            <p style="margin: 5px 0;"><strong>Cost:</strong> $${data.inbound_messages?.total_dollars || '0.00'}</p>
+                        </div>
+                        
+                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107;">
+                            <h4 style="margin: 0 0 10px 0; color: #856404;">💵 Total Cost</h4>
+                            <p style="margin: 5px 0;"><strong>Messages:</strong> ${data.totals?.total_messages || 0}</p>
+                            <p style="margin: 5px 0; font-size: 1.2em;"><strong>Total:</strong> $${data.totals?.total_dollars || '0.00'}</p>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <h4 style="margin-top: 0;">ℹ️ Cost Information</h4>
+                        <ul style="margin: 10px 0; padding-left: 20px;">
+                            <li>Each SMS costs <strong>$0.10</strong> (10 cents)</li>
+                            <li><strong>Outbound:</strong> Costs are charged only when messages are successfully sent</li>
+                            <li><strong>Inbound:</strong> All received messages are charged $0.10</li>
+                            <li>Failed or canceled messages are not charged</li>
+                        </ul>
+                    </div>
+                    
+                    ${monthlySection}
+                </div>
+            `;
+        } else {
+            content.innerHTML = `<p>Error loading cost summary: ${result.error?.detail || 'Unknown error'}</p>`;
+        }
+    } catch (error) {
+        console.error("Error loading cost summary:", error);
+        content.innerHTML = '<p>Error loading cost summary.</p>';
+    }
+}
+
 // Badge updater: show/hide the "Pickup Sent" badge for a given service record
 async function updatePickupSentBadge(serviceRecordId) {
     try {
-        const result = await makeApiCall(`/messages/service-record/${serviceRecordId}/pickup-sent`);
+        const result = await apiFetch(`/messages/service-record/${serviceRecordId}/pickup-sent`);
         const pickupSent = result && result.success && result.data && result.data.pickup_sent;
         const badge = document.getElementById(`pickup-badge-${serviceRecordId}`);
         if (badge) {
@@ -375,45 +670,7 @@ async function updatePickupSentBadge(serviceRecordId) {
     }
 }
 
-// Global API call helper function
-async function makeApiCall(url, method = 'GET', body = null) {
-    const options = {
-        method,
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    };
-
-    if (body) {
-        options.body = JSON.stringify(body);
-    }
-
-    try {
-        const response = await fetch(url, options);
-        // Clone the response so we can read its body multiple times if needed
-        const clonedResponse = response.clone(); 
-
-        let data;
-        try {
-            data = await response.json(); // Try to read original response as JSON
-        } catch (jsonError) {
-            // If JSON parsing fails, read the cloned response as text
-            data = await clonedResponse.text(); 
-        }
-
-        if (response.ok) {
-            return { success: true, data: data };
-        } else {
-            const errorMessage = (data && typeof data === 'object' && data.detail)
-                                 ? data.detail
-                                 : (data || `HTTP Error: ${response.status}`);
-            return { success: false, error: { status: response.status, detail: errorMessage } };
-        }
-    } catch (networkError) {
-        console.error("Network or unexpected error:", networkError);
-        return { success: false, error: { status: 0, detail: "Network error or unexpected issue." } };
-    }
-}
+// Note: apiFetch function is defined at the top of the file
 
 async function loadMessageHistory(vinId) {
     const historyContent = document.getElementById('message-history-content');
@@ -422,7 +679,7 @@ async function loadMessageHistory(vinId) {
     historyContent.innerHTML = '<p>Loading message history...</p>';
 
     try {
-        const result = await makeApiCall(`/messages/vin/${vinId}/history`);
+        const result = await apiFetch(`/messages/vin/${vinId}/history`);
         
         if (result.success) {
             const history = result.data;
@@ -442,8 +699,8 @@ async function loadMessageHistory(vinId) {
                     </div>
                     <div class="message-details">
                         <small>
-                            <strong>Scheduled:</strong> ${new Date(msg.scheduled_time).toLocaleString()}
-                            ${msg.sent_at ? `<br><strong>Sent:</strong> ${new Date(msg.sent_at).toLocaleString()}` : ''}
+                            <strong>Scheduled:</strong> ${dateFromUtcNaiveString(msg.scheduled_time).toLocaleString()}
+                            ${msg.sent_at ? `<br><strong>Sent:</strong> ${dateFromUtcNaiveString(msg.sent_at).toLocaleString()}` : ''}
                         </small>
                     </div>
                 </div>
@@ -457,7 +714,7 @@ async function loadMessageHistory(vinId) {
                 </div>
             `;
         } else {
-            historyContent.innerHTML = `<p>Error loading message history: ${result.error.detail}</p>`;
+            historyContent.innerHTML = `<p>Error loading message history: ${result.error?.detail || 'Unknown error'}</p>`;
         }
     } catch (error) {
         console.error("Error loading message history:", error);
@@ -472,7 +729,7 @@ async function loadPickupHistory(vinId) {
     historyContent.innerHTML = '<p>Loading pickup history...</p>';
 
     try {
-        const result = await makeApiCall(`/messages/vin/${vinId}/pickup-history`);
+        const result = await apiFetch(`/messages/vin/${vinId}/pickup-history`);
         
         if (result.success) {
             const history = result.data;
@@ -492,8 +749,8 @@ async function loadPickupHistory(vinId) {
                     </div>
                     <div class="message-details">
                         <small>
-                            <strong>Sent:</strong> ${new Date(msg.scheduled_time).toLocaleString()}
-                            ${msg.sent_at ? `<br><strong>Delivered:</strong> ${new Date(msg.sent_at).toLocaleString()}` : ''}
+                            <strong>Sent:</strong> ${dateFromUtcNaiveString(msg.scheduled_time).toLocaleString()}
+                            ${msg.sent_at ? `<br><strong>Delivered:</strong> ${dateFromUtcNaiveString(msg.sent_at).toLocaleString()}` : ''}
                         </small>
                     </div>
                 </div>
@@ -506,7 +763,7 @@ async function loadPickupHistory(vinId) {
                 </div>
             `;
         } else {
-            historyContent.innerHTML = `<p>Error loading pickup history: ${result.error.detail}</p>`;
+            historyContent.innerHTML = `<p>Error loading pickup history: ${result.error?.detail || 'Unknown error'}</p>`;
         }
     } catch (error) {
         console.error("Error loading pickup history:", error);
@@ -521,7 +778,7 @@ async function loadReminderHistory(vinId) {
     historyContent.innerHTML = '<p>Loading reminder history...</p>';
 
     try {
-        const result = await makeApiCall(`/messages/vin/${vinId}/reminder-history`);
+        const result = await apiFetch(`/messages/vin/${vinId}/reminder-history`);
         
         if (result.success) {
             const history = result.data;
@@ -541,8 +798,8 @@ async function loadReminderHistory(vinId) {
                     </div>
                     <div class="message-details">
                         <small>
-                            <strong>Scheduled for:</strong> ${new Date(msg.scheduled_time).toLocaleString()}
-                            ${msg.sent_at ? `<br><strong>Sent:</strong> ${new Date(msg.sent_at).toLocaleString()}` : ''}
+                            <strong>Scheduled for:</strong> ${dateFromUtcNaiveString(msg.scheduled_time).toLocaleString()}
+                            ${msg.sent_at ? `<br><strong>Sent:</strong> ${dateFromUtcNaiveString(msg.sent_at).toLocaleString()}` : ''}
                         </small>
                     </div>
                 </div>
@@ -555,7 +812,7 @@ async function loadReminderHistory(vinId) {
                 </div>
             `;
         } else {
-            historyContent.innerHTML = `<p>Error loading reminder history: ${result.error.detail}</p>`;
+            historyContent.innerHTML = `<p>Error loading reminder history: ${result.error?.detail || 'Unknown error'}</p>`;
         }
     } catch (error) {
         console.error("Error loading reminder history:", error);
@@ -596,7 +853,7 @@ async function loadSentReminderHistory(vinId) {
     historyContent.innerHTML = '<p>Loading sent reminders...</p>';
 
     try {
-        const result = await makeApiCall(`/messages/vin/${vinId}/reminder-history`);
+        const result = await apiFetch(`/messages/vin/${vinId}/reminder-history`);
         if (result.success) {
             const history = result.data;
             const sentOnly = (history.reminder_history || []).filter(msg => msg.status === 'sent');
@@ -616,8 +873,8 @@ async function loadSentReminderHistory(vinId) {
                     </div>
                     <div class="message-details">
                         <small>
-                            <strong>Scheduled for:</strong> ${new Date(msg.scheduled_time).toLocaleString()}<br>
-                            <strong>Sent:</strong> ${msg.sent_at ? new Date(msg.sent_at).toLocaleString() : '—'}
+                            <strong>Scheduled for:</strong> ${dateFromUtcNaiveString(msg.scheduled_time).toLocaleString()}<br>
+                            <strong>Sent:</strong> ${msg.sent_at ? dateFromUtcNaiveString(msg.sent_at).toLocaleString() : '—'}
                         </small>
                     </div>
                 </div>
@@ -630,7 +887,7 @@ async function loadSentReminderHistory(vinId) {
                 </div>
             `;
         } else {
-            historyContent.innerHTML = `<p>Error loading sent reminders: ${result.error.detail}</p>`;
+            historyContent.innerHTML = `<p>Error loading sent reminders: ${result.error?.detail || 'Unknown error'}</p>`;
         }
     } catch (error) {
         console.error('Error loading sent reminders:', error);
@@ -665,16 +922,16 @@ async function handlePickupFlow(serviceRecordId) {
     pickupMessageSection.innerHTML = '<h2>Loading service record...</h2>';
 
     // 2. Fetch the service record data
-    const result = await makeApiCall(`/service-record/${serviceRecordId}`);
+    const result = await apiFetch(`/service-record/${serviceRecordId}`);
     console.log("DEBUG: Service record API result:", result);
 
     if (!result.success) {
         pickupMessageSection.innerHTML = `
             <div style="text-align: center; margin-bottom: 20px;">
-                <button onclick="window.location.href='./'" style="background-color: #6c757d; margin-bottom: 10px;">← Back to Main</button>
+                <button onclick="backToMain()" style="background-color: #6c757d; margin-bottom: 10px;">← Back to Main</button>
             </div>
             <h2>Error Loading Service Record</h2>
-            <p>Could not load service record data: ${result.error.detail}</p>
+            <p>Could not load service record data: ${result.error?.detail || 'Unknown error'}</p>
         `;
         return;
     }
@@ -687,7 +944,7 @@ async function handlePickupFlow(serviceRecordId) {
     if (!vin) {
         pickupMessageSection.innerHTML = `
             <div style="text-align: center; margin-bottom: 20px;">
-                <button onclick="window.location.href='./'" style="background-color: #6c757d; margin-bottom: 10px;">← Back to Main</button>
+                <button onclick="backToMain()" style="background-color: #6c757d; margin-bottom: 10px;">← Back to Main</button>
             </div>
             <h2>Error</h2>
             <p>VIN data is missing from the service record.</p>
@@ -745,11 +1002,18 @@ function renderPickupUI(serviceRecord, vin, contacts) {
         : "<p>No contacts associated with this vehicle. Please add a contact below to send a pickup message.</p>";
 
     pickupMessageSection.innerHTML = `
-        <div style="text-align: center; margin-bottom: 20px;">
-            <button onclick="window.location.href='./'" style="background-color: #6c757d; margin-bottom: 10px;">← Back to Main</button>
-            <button onclick="window.location.href='./'" style="background-color: #28a745; margin-left: 10px;">✓ Done</button>
+        <div style="margin-bottom: 15px; padding: 8px 12px; background: #f8f9fa; border-radius: 5px; border-left: 3px solid #007bff; font-size: 14px; color: #495057;">
+            🗺️ <strong>Navigation:</strong> 
+            <a href="javascript:backToMain()" style="color: #007bff; text-decoration: none;">Home</a> 
+            → <a href="javascript:searchVin('${vin.vin}')" style="color: #007bff; text-decoration: none;">VIN ${vin.vin.slice(-6)}</a> 
+            → <span style="color: #6c757d;">Send Pickup Message</span>
         </div>
-        <h2>Send Pickup Message</h2>
+        <div style="text-align: center; margin-bottom: 20px;">
+            <button onclick="backToMain()" style="background-color: #6c757d; margin-bottom: 10px;">← Back to Main</button>
+            <button onclick="searchVin('${vin.vin}')" style="background-color: #17a2b8; margin: 0 10px;">🚗 Back to VIN</button>
+            <button onclick="backToMain()" style="background-color: #28a745; margin-left: 10px;">✓ Done</button>
+        </div>
+        <h2>📱 Send Pickup Message</h2>
         <h3>Vehicle: ${vin.year} ${vin.make} ${vin.model} (${vin.vin})</h3>
         <p><strong>Service Date:</strong> ${serviceRecord.service_date}</p>
         <p><strong>Mileage:</strong> ${serviceRecord.mileage_at_service}</p>
@@ -891,7 +1155,7 @@ function showPickupMessageComposer(serviceRecord, vin, contact) {
         submitButton.disabled = true;
 
         try {
-            const result = await makeApiCall("/messages/send", 'POST', {
+            const result = await apiFetch("/messages/send", 'POST', {
                 service_record_id: parseInt(messageData.service_record_id),
                 contact_id: parseInt(messageData.contact_id),
                 immediate_message_content: messageData.message
@@ -906,7 +1170,7 @@ function showPickupMessageComposer(serviceRecord, vin, contact) {
                 const targetUrl = `${window.location.pathname}?vin_or_last6=${encodeURIComponent(vin.vin)}`;
                 window.location.href = targetUrl;
             } else {
-                alert(`Error sending message: ${result.error.detail}`);
+                alert(`Error sending message: ${result.error?.detail || 'Unknown error'}`);
             }
         } catch (error) {
             console.error("Error sending message:", error);
@@ -934,7 +1198,7 @@ function setupPickupContactEvents(currentVinId, currentVinString, serviceRecord,
             const formData = new FormData(form);
             const contactData = Object.fromEntries(formData.entries());
 
-            const result = await makeApiCall("/contacts/", 'POST', contactData);
+            const result = await apiFetch("/contacts/", 'POST', contactData);
 
             if (result.success) {
                 alert(`Contact ${result.data.name} created successfully! Now linking to VIN.`);
@@ -949,7 +1213,7 @@ function setupPickupContactEvents(currentVinId, currentVinString, serviceRecord,
                 }
                 form.reset();
             } else {
-                alert(`Error creating contact: ${result.error.detail}`);
+                alert(`Error creating contact: ${result.error?.detail || 'Unknown error'}`);
             }
         } else if (form.id === "link-contact-form-pickup") {
             const selectedContactIdInput = document.getElementById("selected_contact_id_pickup");
@@ -966,7 +1230,7 @@ function setupPickupContactEvents(currentVinId, currentVinString, serviceRecord,
             } else if (result.error && result.error.detail === "Contact already linked to this VIN") {
                 alert("This contact is already linked to the current VIN.");
             } else {
-                alert(`Error linking contact: ${result.error.detail}`);
+                alert(`Error linking contact: ${result.error?.detail || 'Unknown error'}`);
             }
         }
     });
@@ -984,15 +1248,34 @@ function setupPickupContactEvents(currentVinId, currentVinString, serviceRecord,
                 const phoneNumber = searchContactPhoneInput.value.trim();
                 if (phoneNumber.length >= 3) {
                     const foundContacts = await searchContacts(phoneNumber);
+                    
+                    // Get currently linked contact IDs from the contacts array
+                    const currentlyLinkedContactIds = new Set();
+                    contacts.forEach(contact => {
+                        currentlyLinkedContactIds.add(contact.id);
+                    });
+                    
+                    // Filter out already linked contacts
+                    const availableContacts = foundContacts.filter(contact => !currentlyLinkedContactIds.has(contact.id));
+                    
                     searchResultsList.innerHTML = ""; // Clear previous results
+                    
                     if (foundContacts.length === 0) {
                         searchResultsList.innerHTML = "<p>No contacts found.</p>";
                         selectedContactIdInput.value = "";
                         linkContactButton.disabled = true;
                         return;
                     }
+                    
+                    if (availableContacts.length === 0) {
+                        const alreadyLinkedNames = foundContacts.map(c => c.name).join(", ");
+                        searchResultsList.innerHTML = `<p style="color: #856404; background: #fff3cd; padding: 8px; border-radius: 4px;">Found ${foundContacts.length} contact(s) (${alreadyLinkedNames}), but they are already linked to this VIN.</p>`;
+                        selectedContactIdInput.value = "";
+                        linkContactButton.disabled = true;
+                        return;
+                    }
 
-                    foundContacts.forEach(contact => {
+                    availableContacts.forEach(contact => {
                         const resultItem = document.createElement("div");
                         resultItem.classList.add("search-result-item");
                         resultItem.innerHTML = `<strong>${contact.name}</strong> (${contact.phone_number})`;
@@ -1037,10 +1320,9 @@ function setupPickupContactEvents(currentVinId, currentVinString, serviceRecord,
 // Helper functions that need to be global
 async function searchContacts(phoneNumber) {
     try {
-        const response = await fetch(`/contacts/search?phone_number=${phoneNumber}`);
-        if (response.ok) {
-            const contacts = await response.json();
-            return contacts;
+        const result = await apiFetch(`/contacts/search?phone_number=${phoneNumber}`);
+        if (result.success) {
+            return result.data;
         } else {
             console.error("Failed to search contacts.");
             return [];
@@ -1052,7 +1334,7 @@ async function searchContacts(phoneNumber) {
 }
 
 async function linkContactToVin(contactId, vinId) {
-    const result = await makeApiCall(`/contacts/${contactId}/link_to_vin/${vinId}`, 'POST');
+    const result = await apiFetch(`/contacts/${contactId}/link_to_vin/${vinId}`, 'POST');
     return result;
 }
     
@@ -1065,7 +1347,7 @@ async function linkContactToVin(contactId, vinId) {
         
         for (const contact of contacts) {
             try {
-                const result = await makeApiCall("/messages/send", 'POST', {
+                const result = await apiFetch("/messages/send", 'POST', {
                     service_record_id: serviceRecordId,
                     contact_id: contact.id,
                     immediate_message_content: immediateMessage
@@ -1074,7 +1356,7 @@ async function linkContactToVin(contactId, vinId) {
                 if (result.success) {
                     console.log(`Message sent to ${contact.name}`);
                 } else {
-                    console.error(`Failed to send to ${contact.name}: ${result.error.detail}`);
+                    console.error(`Failed to send to ${contact.name}: ${result.error?.detail || 'Unknown error'}`);
                 }
             } catch (error) {
                 console.error(`Error sending to ${contact.name}:`, error);
@@ -1101,7 +1383,7 @@ function attachMasterCancelHandlers() {
         if (!btn) return;
         const id = btn.getAttribute('data-message-id');
         if (!confirm('Cancel this scheduled message?')) return;
-        const res = await makeApiCall(`/messages/message/${id}/cancel`, 'POST');
+        const res = await apiFetch(`/messages/message/${id}/cancel`, 'POST');
         if (res.success) {
             const item = btn.closest('.master-message-item');
             if (item) {
@@ -1168,14 +1450,14 @@ loadMasterMessages = async function(dateFilter = null){
     if (!content) return;
     content.innerHTML = '<p>Loading messages...</p>';
     const url = dateFilter ? `/messages/all-outbound?date=${dateFilter}` : '/messages/all-outbound';
-    const result = await makeApiCall(url);
+    const result = await apiFetch(url);
     if (result.success) {
         const data = result.data;
         const html = withCancelMarkup('', data.messages);
         content.innerHTML = `<div class="master-message-container"><h3>All Outbound Messages ${data.date_filter ? `(${data.date_filter})` : '(All Time)'}</h3><p><strong>Total Messages:</strong> ${data.total_messages}</p>${html}</div>`;
         attachMasterCancelHandlers();
     } else {
-        content.innerHTML = `<p>Error loading messages: ${result.error.detail}</p>`;
+        content.innerHTML = `<p>Error loading messages: ${result.error?.detail || 'Unknown error'}</p>`;
     }
 }
 
@@ -1186,14 +1468,14 @@ loadPickupMessages = async function(dateFilter = null){
     if (!content) return;
     content.innerHTML = '<p>Loading pickup messages...</p>';
     const url = dateFilter ? `/messages/pickup-messages?date=${dateFilter}` : '/messages/pickup-messages';
-    const result = await makeApiCall(url);
+    const result = await apiFetch(url);
     if (result.success) {
         const data = result.data;
         const html = withCancelMarkup('', data.messages);
         content.innerHTML = `<div class="master-message-container"><h3>📱 Pickup Messages ${data.date_filter ? `(${data.date_filter})` : '(All Time)'}</h3><p><strong>Total Pickup Messages:</strong> ${data.total_messages}</p>${html}</div>`;
         attachMasterCancelHandlers();
     } else {
-        content.innerHTML = `<p>Error loading pickup messages: ${result.error.detail}</p>`;
+        content.innerHTML = `<p>Error loading pickup messages: ${result.error?.detail || 'Unknown error'}</p>`;
     }
 }
 
@@ -1203,14 +1485,14 @@ loadReminderMessages = async function(dateFilter = null){
     if (!content) return;
     content.innerHTML = '<p>Loading reminder messages...</p>';
     const url = dateFilter ? `/messages/reminder-messages?date=${dateFilter}` : '/messages/reminder-messages';
-    const result = await makeApiCall(url);
+    const result = await apiFetch(url);
     if (result.success) {
         const data = result.data;
         const html = withCancelMarkup('', data.messages);
         content.innerHTML = `<div class="master-message-container"><h3>🔄 Reminder Messages ${data.date_filter ? `(${data.date_filter})` : '(All Time)'}</h3><p><strong>Total Reminder Messages:</strong> ${data.total_messages}</p>${html}</div>`;
         attachMasterCancelHandlers();
     } else {
-        content.innerHTML = `<p>Error loading reminder messages: ${result.error.detail}</p>`;
+        content.innerHTML = `<p>Error loading reminder messages: ${result.error?.detail || 'Unknown error'}</p>`;
     }
 }
 
@@ -1224,7 +1506,7 @@ function attachVinHistoryCancelHandlers() {
         if (!btn) return;
         const id = btn.getAttribute('data-message-id');
         if (!confirm('Cancel this scheduled message?')) return;
-        const res = await makeApiCall(`/messages/message/${id}/cancel`, 'POST');
+        const res = await apiFetch(`/messages/message/${id}/cancel`, 'POST');
         if (res.success) {
             const status = btn.closest('.message-history-item').querySelector('.message-status');
             status.textContent = 'CANCELED';
@@ -1250,8 +1532,8 @@ function decorateHistoryWithCancel(html, list) {
             </div>
             <div class="message-details">
                 <small>
-                    <strong>Scheduled:</strong> ${new Date(msg.scheduled_time).toLocaleString()}
-                    ${msg.sent_at ? `<br><strong>Sent:</strong> ${new Date(msg.sent_at).toLocaleString()}` : ''}
+                    <strong>Scheduled:</strong> ${dateFromUtcNaiveString(msg.scheduled_time).toLocaleString()}
+                    ${msg.sent_at ? `<br><strong>Sent:</strong> ${dateFromUtcNaiveString(msg.sent_at).toLocaleString()}` : ''}
                 </small>
             </div>
         </div>`).join('');
@@ -1263,14 +1545,14 @@ loadMessageHistory = async function(vinId){
     const historyContent = document.getElementById('message-history-content');
     if (!historyContent) return;
     historyContent.innerHTML = '<p>Loading message history...</p>';
-    const result = await makeApiCall(`/messages/vin/${vinId}/history`);
+    const result = await apiFetch(`/messages/vin/${vinId}/history`);
     if (result.success) {
         const history = result.data;
         const html = decorateHistoryWithCancel('', history.message_history);
         historyContent.innerHTML = `<div class="message-history-container"><h5>${history.vehicle_info} (${history.vin_string})</h5>${html}</div>`;
         attachVinHistoryCancelHandlers();
     } else {
-        historyContent.innerHTML = `<p>Error loading message history: ${result.error.detail}</p>`;
+        historyContent.innerHTML = `<p>Error loading message history: ${result.error?.detail || 'Unknown error'}</p>`;
     }
 }
 
@@ -1323,20 +1605,22 @@ document.addEventListener("DOMContentLoaded", () => {
         serviceRecordCreationDiv.style.display = "none";
 
         try {
-            const response = await fetch(`/vin/${vinOrLast6}`);
-            if (response.ok) {
-                const data = await response.json();
-                displayVinProfile(data); // Renders HTML and calls setupVinProfileContactEvents
+            const result = await apiFetch(`/vin/${vinOrLast6}`);
+            if (result.success) {
+                displayVinProfile(result.data); // Renders HTML and calls setupVinProfileContactEvents
+                vinProfileDiv.style.display = "block"; // Show the VIN profile
                 serviceRecordCreationDiv.style.display = "block";
-                document.getElementById("service-vin").value = data.vin;
+                document.getElementById("service-vin").value = result.data.vin;
             } else {
                 vinProfileDiv.innerHTML = "<p>VIN not found. Please create a new profile.</p>";
+                vinProfileDiv.style.display = "block"; // Show the "not found" message
                 vinCreationDiv.style.display = "block";
                 document.getElementById("vin").value = vinOrLast6; // Populate VIN field
             }
         } catch (error) {
             console.error("Error:", error);
             vinProfileDiv.innerHTML = "<p>An error occurred while fetching the VIN profile.</p>";
+            vinProfileDiv.style.display = "block"; // Show the error message
         }
     });
 
@@ -1357,13 +1641,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         try {
-            const response = await fetch(`/vin/decode_vin/${vin}`);
-            if (response.ok) {
-                const data = await response.json();
-                document.getElementById("make").value = data.make || "";
-                document.getElementById("model").value = data.model || "";
-                document.getElementById("year").value = data.year || "";
-                document.getElementById("trim").value = data.trim || "";
+            const result = await apiFetch(`/vin/decode_vin/${vin}`);
+            if (result.success) {
+                document.getElementById("make").value = result.data.make || "";
+                document.getElementById("model").value = result.data.model || "";
+                document.getElementById("year").value = result.data.year || "";
+                document.getElementById("trim").value = result.data.trim || "";
             } else {
                 alert("Failed to decode VIN.");
             }
@@ -1377,17 +1660,16 @@ document.addEventListener("DOMContentLoaded", () => {
         e.preventDefault();
         const formData = new FormData(createVinForm);
         const data = Object.fromEntries(formData.entries());
+        
+        // Convert year to integer
+        if (data.year) {
+            data.year = parseInt(data.year, 10);
+        }
 
         try {
-            const response = await fetch("/vin/", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(data),
-            });
+            const result = await apiFetch("/vin/", "POST", data);
 
-            if (response.ok) {
+            if (result.success) {
                 alert("VIN created successfully!");
                 createVinForm.reset();
                 vinCreationDiv.style.display = "none";
@@ -1395,8 +1677,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 document.getElementById("vin_or_last6").value = vin;
                 getVinProfileForm.dispatchEvent(new Event("submit"));
             } else {
-                const error = await response.json();
-                alert(`Error: ${error.detail}`);
+                alert(`Error: ${result.error?.detail || 'Unknown error'}`);
             }
         } catch (error) {
             console.error("Error:", error);
@@ -1406,6 +1687,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     createServiceRecordForm.addEventListener("submit", async (e) => {
         e.preventDefault();
+        
+        // Get the submit button and prevent double-submission
+        const submitButton = createServiceRecordForm.querySelector('button[type="submit"]');
+        if (submitButton.disabled) {
+            return; // Prevent double submission
+        }
+        
         const formData = new FormData(createServiceRecordForm);
         const data = Object.fromEntries(formData.entries());
 
@@ -1413,28 +1701,29 @@ document.addEventListener("DOMContentLoaded", () => {
         data.mileage_at_service = parseInt(data.mileage_at_service, 10);
         data.next_service_mileage_due = parseInt(data.next_service_mileage_due, 10);
 
-        try {
-            const response = await fetch("/service-record/", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(data),
-            });
+        // Show loading state and disable button
+        const originalText = submitButton.textContent;
+        submitButton.textContent = 'Creating Service Record...';
+        submitButton.disabled = true;
 
-            if (response.ok) {
-                const result = await response.json();
+        try {
+            const result = await apiFetch("/service-record/", "POST", data);
+
+            if (result.success) {
                 alert("Service record created successfully!");
                 createServiceRecordForm.reset();
                 // Redirect with the new service record ID
-                window.location.href = currentPath + '?new_service_id=' + result.id;
+                window.location.href = currentPath + '?new_service_id=' + result.data.id;
             } else {
-                const error = await response.json();
-                alert(`Error: ${error.detail}`);
+                alert(`Error: ${result.error?.detail || 'Unknown error'}`);
             }
         } catch (error) {
             console.error("Error:", error);
             alert("An error occurred while creating the service record.");
+        } finally {
+            // Restore button state
+            submitButton.textContent = originalText;
+            submitButton.disabled = false;
         }
     });
 
@@ -1488,7 +1777,19 @@ document.addEventListener("DOMContentLoaded", () => {
             : "<p>No contacts associated yet.</p>";
 
         vinProfileDiv.innerHTML = `
-            <h3>VIN: ${data.vin}</h3>
+            <div style="margin-bottom: 15px; padding: 8px 12px; background: #f8f9fa; border-radius: 5px; border-left: 3px solid #007bff; font-size: 14px; color: #495057;">
+                🗺️ <strong>Navigation:</strong> 
+                <a href="javascript:backToMain()" style="color: #007bff; text-decoration: none;">Home</a> 
+                → <span style="color: #6c757d;">VIN Profile (${data.vin.slice(-6)})</span>
+                <div style="float: right;">
+                    <a href="javascript:showMasterMessageView()" style="color: #007bff; text-decoration: none; margin-right: 10px;">📊 Master Messages</a>
+                    <a href="javascript:showInboundMessages()" style="color: #007bff; text-decoration: none;">📥 Inbound</a>
+                </div>
+            </div>
+            <div style="text-align: center; margin-bottom: 15px;">
+                <button onclick="backToMain()" style="background-color: #6c757d; padding: 8px 16px; border: none; border-radius: 5px; color: white;">← Back to Main</button>
+            </div>
+            <h3>🚗 VIN: ${data.vin}</h3>
             <div class="vin-details-container">
                 <p><strong>Make:</strong> <span>${data.make}</span></p>
                 <p><strong>Model:</strong> <span>${data.model}</span></p>
@@ -1534,7 +1835,7 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
 
         // Now that the HTML is rendered, set up delegated event listeners
-        setupVinProfileContactEvents(data.id, data.vin); // Pass VIN ID and VIN string
+        setupVinProfileContactEvents(data.id, data.vin, data); // Pass VIN ID, VIN string, and full data
         
         // Populate pickup-sent badges per service record
         if (data && data.service_records) {
@@ -1547,7 +1848,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- Delegated Event Handling ---
 
-    function setupVinProfileContactEvents(currentVinId, currentVinString) {
+    function setupVinProfileContactEvents(currentVinId, currentVinString, vinData = null) {
         let searchTimeout;
 
         // Event listener for forms within vinProfileDiv (submit event)
@@ -1559,7 +1860,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const formData = new FormData(form);
                 const contactData = Object.fromEntries(formData.entries());
 
-                const result = await makeApiCall("/contacts/", 'POST', contactData);
+                const result = await apiFetch("/contacts/", 'POST', contactData);
 
                 if (result.success) {
                     alert(`Contact ${result.data.name} created successfully! Now linking to VIN.`);
@@ -1572,7 +1873,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     document.getElementById("vin_or_last6").value = currentVinString; // Use the current VIN string
                     getVinProfileForm.dispatchEvent(new Event("submit"));
                 } else {
-                    alert(`Error creating contact: ${result.error.detail}`);
+                    alert(`Error creating contact: ${result.error?.detail || 'Unknown error'}`);
                 }
             } else if (form.id === "link-contact-form") {
                 const selectedContactIdInput = document.getElementById("selected_contact_id");
@@ -1587,7 +1888,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 } else if (result.error && result.error.detail === "Contact already linked to this VIN") {
                     alert("This contact is already linked to the current VIN.");
                 } else {
-                    alert(`Error linking contact: ${result.error.detail}`);
+                    alert(`Error linking contact: ${result.error?.detail || 'Unknown error'}`);
                 }
                 // Re-fetch VIN profile to update contacts display
                 document.getElementById("vin_or_last6").value = currentVinString; // Use the current VIN string
@@ -1608,15 +1909,36 @@ document.addEventListener("DOMContentLoaded", () => {
                     const phoneNumber = searchContactPhoneInput.value.trim();
                     if (phoneNumber.length >= 3) {
                         const foundContacts = await searchContacts(phoneNumber);
+                        
+                        // Get currently linked contact IDs from VIN data
+                        const currentlyLinkedContactIds = new Set();
+                        if (vinData && vinData.contacts) {
+                            vinData.contacts.forEach(contact => {
+                                currentlyLinkedContactIds.add(contact.id);
+                            });
+                        }
+                        
+                        // Filter out already linked contacts
+                        const availableContacts = foundContacts.filter(contact => !currentlyLinkedContactIds.has(contact.id));
+                        
                         searchResultsList.innerHTML = ""; // Clear previous results
+                        
                         if (foundContacts.length === 0) {
                             searchResultsList.innerHTML = "<p>No contacts found.</p>";
                             selectedContactIdInput.value = "";
                             linkContactButton.disabled = true;
                             return;
                         }
+                        
+                        if (availableContacts.length === 0) {
+                            const alreadyLinkedNames = foundContacts.map(c => c.name).join(", ");
+                            searchResultsList.innerHTML = `<p style="color: #856404; background: #fff3cd; padding: 8px; border-radius: 4px;">Found ${foundContacts.length} contact(s) (${alreadyLinkedNames}), but they are already linked to this VIN.</p>`;
+                            selectedContactIdInput.value = "";
+                            linkContactButton.disabled = true;
+                            return;
+                        }
 
-                        foundContacts.forEach(contact => {
+                        availableContacts.forEach(contact => {
                             const resultItem = document.createElement("div");
                             resultItem.classList.add("search-result-item");
                             resultItem.innerHTML = `<strong>${contact.name}</strong> (${contact.phone_number})`;

@@ -13,6 +13,7 @@ class ScheduledMessage(SQLModel, table=True):
     sent_at: Optional[datetime] = None
     status: str = Field(default="pending") # e.g., "pending", "sent", "canceled", "failed"
     is_reminder: bool = Field(default=False, index=True)
+    # cost_cents: Optional[int] = Field(default=None) # Cost in cents when message is sent (e.g., 10 for $0.10) - Temporarily disabled
 
     contact: "Contact" = Relationship(back_populates="scheduled_messages")
     vin: "VIN" = Relationship(back_populates="scheduled_messages")

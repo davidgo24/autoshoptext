@@ -34,7 +34,8 @@ async def send_scheduled_messages():
                     if success:
                         msg.status = "sent"
                         msg.sent_at = datetime.now(timezone.utc).replace(tzinfo=None)
-                        print(f"Scheduler: Message {msg.id} sent successfully.")
+                        # msg.cost_cents = 10  # Set cost when message is successfully sent - Temporarily disabled
+                        print(f"Scheduler: Message {msg.id} sent successfully. Cost: $0.10")
                     else:
                         msg.status = "failed"
                         print(f"Scheduler: Failed to send message {msg.id}.")
@@ -51,6 +52,24 @@ async def send_scheduled_messages():
             await session.close()
 
 async def start_scheduler():
+    """
+    Production-ready scheduler with error handling and recovery
+    """
+    consecutive_failures = 0
+    max_failures = 5
+    
     while True:
-        await send_scheduled_messages()
-        await asyncio.sleep(60) # Check every 60 seconds
+        try:
+            await send_scheduled_messages()
+            consecutive_failures = 0  # Reset on success
+            await asyncio.sleep(60)  # Check every 60 seconds
+        except Exception as e:
+            consecutive_failures += 1
+            print(f"Scheduler fatal error ({consecutive_failures}/{max_failures}): {e}")
+            
+            if consecutive_failures >= max_failures:
+                print("Scheduler: Too many consecutive failures, extending sleep time")
+                await asyncio.sleep(300)  # Sleep 5 minutes on repeated failures
+                consecutive_failures = 0  # Reset after extended sleep
+            else:
+                await asyncio.sleep(120)  # Sleep 2 minutes on single failure

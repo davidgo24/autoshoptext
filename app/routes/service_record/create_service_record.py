@@ -30,6 +30,21 @@ async def add_service_record(record_in: ServiceRecordCreate, session: AsyncSessi
     if not vin:
         raise HTTPException(status_code=404, detail="VIN not found")
 
+    # Check for existing service record on the same date for this VIN
+    existing_record_query = await session.execute(
+        select(ServiceRecord).where(
+            ServiceRecord.vin_id == vin.id,
+            ServiceRecord.service_date == record_in.service_date
+        )
+    )
+    existing_record = existing_record_query.scalar_one_or_none()
+    
+    if existing_record:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"A service record already exists for this VIN on {record_in.service_date}. Please choose a different date or update the existing record."
+        )
+
     # Create a new ServiceRecord instance
     record_data = record_in.dict()
     record_data.pop("vin")

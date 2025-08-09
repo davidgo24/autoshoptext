@@ -64,3 +64,12 @@ async def init_db():
             await conn.execute(text("ALTER TABLE IF EXISTS scheduledmessage ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now()"))
         except Exception:
             pass
+        # Add cost tracking columns
+        try:
+            await conn.execute(text("ALTER TABLE IF EXISTS scheduledmessage ADD COLUMN IF NOT EXISTS cost_cents INTEGER"))
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE IF EXISTS incomingmessage ADD COLUMN IF NOT EXISTS cost_cents INTEGER DEFAULT 10"))
+        except Exception:
+            pass
