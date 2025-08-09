@@ -9,6 +9,7 @@ from app.models.service_record import ServiceRecord
 from app.models.contact import Contact
 from app.models.vin_contact_link import VINContactLink
 from app.models.scheduled_message import ScheduledMessage
+from app.models.incoming_message import IncomingMessage
 from sqlalchemy import text
 
 # Load env vars from .env file
@@ -30,7 +31,14 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db():
     async with engine.begin() as conn:
+        # Drop the table if it exists to ensure a clean slate
+        try:
+            await conn.execute(text("DROP TABLE IF EXISTS incomingmessage"))
+        except Exception as e:
+            print(f"Could not drop IncomingMessage table: {e}")
+
         await conn.run_sync(SQLModel.metadata.create_all)
+
         # Best-effort: add service_record_id to scheduledmessage if it doesn't exist
         try:
             await conn.execute(text("ALTER TABLE scheduledmessage ADD COLUMN service_record_id INTEGER"))
