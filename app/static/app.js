@@ -148,11 +148,19 @@ async function updateNotificationBadge() {
     try {
         const result = await makeApiCall('/messages/inbound/unread-count');
         const badge = document.getElementById('inbound-notification-badge');
+        const inboundButton = document.querySelector('button[onclick="showInboundMessages()"]');
+
         if (result.success && result.data.unread_count > 0) {
-            badge.textContent = result.data.unread_count;
+            badge.textContent = `[${result.data.unread_count}]`;
             badge.style.display = 'flex';
+            if (inboundButton) {
+                inboundButton.style.backgroundColor = '#dc3545'; // A standard red color
+            }
         } else {
             badge.style.display = 'none';
+            if (inboundButton) {
+                inboundButton.style.backgroundColor = '#28a745'; // The original green color
+            }
         }
     } catch (error) {
         console.error("Error updating notification badge:", error);
