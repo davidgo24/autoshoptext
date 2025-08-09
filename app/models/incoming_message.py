@@ -12,6 +12,7 @@ class IncomingMessage(SQLModel, table=True):
     to_number: str
     body: str
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    is_read: bool = Field(default=False, index=True)
 
     contact_id: Optional[int] = Field(default=None, foreign_key="contact.id")
     contact: Optional["Contact"] = Relationship(back_populates="incoming_messages")

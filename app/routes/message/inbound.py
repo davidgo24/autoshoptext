@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Form, Response
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func, update
 from twilio.twiml.messaging_response import MessagingResponse
 
 from app.core.database import get_session
@@ -67,6 +67,26 @@ async def handle_inbound_sms(
 from sqlalchemy.orm import selectinload
 
 # ... (rest of the imports)
+
+@router.get("/messages/inbound/unread-count")
+async def get_unread_message_count(session: Session = Depends(get_session)):
+    """Get the count of unread inbound messages."""
+    result = await session.execute(
+        select(func.count(IncomingMessage.id)).where(IncomingMessage.is_read == False)
+    )
+    count = result.scalar_one_or_none() or 0
+    return {"unread_count": count}
+
+
+@router.post("/messages/inbound/mark-as-read")
+async def mark_messages_as_read(session: Session = Depends(get_session)):
+    """Mark all inbound messages as read."""
+    await session.execute(
+        update(IncomingMessage).where(IncomingMessage.is_read == False).values(is_read=True)
+    )
+    await session.commit()
+    return {"success": True, "message": "All messages marked as read."}
+
 
 @router.get("/messages/inbound", response_model=InboundMessageResponse)
 async def get_inbound_messages(session: Session = Depends(get_session)):

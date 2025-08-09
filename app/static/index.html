@@ -17,7 +17,10 @@
         </form>
         <div style="text-align: center; margin-top: 20px;">
             <button onclick="showMasterMessageView()" style="background-color: #007bff; margin-right: 10px;">📊 Master Message View</button>
-            <button onclick="showInboundMessages()" style="background-color: #28a745;">📥 Inbound Messages</button>
+            <button onclick="showInboundMessages()" style="background-color: #28a745; position: relative;">
+                📥 Inbound Messages
+                <span id="inbound-notification-badge" class="notification-badge" style="display: none;"></span>
+            </button>
         </div>
     </div>
 

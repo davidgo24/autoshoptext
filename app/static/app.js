@@ -75,6 +75,14 @@ function loadCurrentMessageType(dateFilter = null) {
 }
 
 async function showInboundMessages() {
+    // Mark all messages as read when the view is opened
+    try {
+        await makeApiCall('/messages/inbound/mark-as-read', 'POST');
+        updateNotificationBadge(); // Update badge immediately
+    } catch (error) {
+        console.error("Error marking messages as read:", error);
+    }
+
     // Hide all other sections
     const vinLookupDiv = document.getElementById("vin-lookup");
     const vinProfileDiv = document.getElementById("vin-profile");
@@ -114,7 +122,7 @@ async function showInboundMessages() {
                         <p>${msg.body}</p>
                     </div>
                     <div class="message-details">
-                        <small><strong>Received:</strong> ${new Date(msg.created_at).toLocaleString()}</small>
+                        <small><strong>Received:</strong> ${dateFromUtcNaiveString(msg.created_at).toLocaleString()}</small>
                     </div>
                 </div>
             `).join('');
@@ -134,6 +142,25 @@ async function showInboundMessages() {
         content.innerHTML = '<p>An error occurred while loading inbound messages.</p>';
     }
 }
+
+// --- Notification System ---
+async function updateNotificationBadge() {
+    try {
+        const result = await makeApiCall('/messages/inbound/unread-count');
+        const badge = document.getElementById('inbound-notification-badge');
+        if (result.success && result.data.unread_count > 0) {
+            badge.textContent = result.data.unread_count;
+            badge.style.display = 'flex';
+        } else {
+            badge.style.display = 'none';
+        }
+    } catch (error) {
+        console.error("Error updating notification badge:", error);
+    }
+}
+
+// Check for new messages periodically
+setInterval(updateNotificationBadge, 20000); // Check every 20 seconds
 
 async function loadMasterMessages(dateFilter = null) {
     const content = document.getElementById('master-message-content');
