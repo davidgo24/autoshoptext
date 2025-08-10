@@ -1745,7 +1745,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     ${data.service_records.map(record => {
                         const isMostRecent = mostRecentService && record.id === mostRecentService.id;
                         return `
-                            <div class="service-record-card" style="position: relative; padding-top: ${isMostRecent ? '40px' : '15px'};">
+                            <div class="service-record-card" style="position: relative; padding-top: 50px;">
                                 <div style="position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;">
                                     ${isMostRecent ? '<div style="background-color: #28a745; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">⭐ Most Recent</div>' : ''}
                                     <div id="pickup-badge-${record.id}" style="display:none; background-color: #0d6efd; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">📤 Pickup Sent</div>

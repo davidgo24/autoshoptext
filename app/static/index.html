@@ -168,18 +168,25 @@
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Set default service date to today
-            const serviceDateInput = document.getElementById('service_date');
-            if (serviceDateInput) {
-                serviceDateInput.value = new Date().toISOString().split('T')[0];
+            function localDateInputValue(d = new Date()) {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
             }
 
-            // Auto-calculate next service date (6 months from today)
+            // Set default service date to today (LOCAL time)
+            const serviceDateInput = document.getElementById('service_date');
+            if (serviceDateInput) {
+                serviceDateInput.value = localDateInputValue(new Date());
+            }
+
+            // Auto-calculate next service date (3 months from today, LOCAL time)
             const nextServiceDateInput = document.getElementById('next_service_date_due');
             if (nextServiceDateInput) {
                 const nextDate = new Date();
-                nextDate.setMonth(nextDate.getMonth() + 6);
-                nextServiceDateInput.value = nextDate.toISOString().split('T')[0];
+                nextDate.setMonth(nextDate.getMonth() + 3);
+                nextServiceDateInput.value = localDateInputValue(nextDate);
             }
         });
     </script>
