@@ -19,7 +19,14 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable not set")
 
-engine = create_async_engine(DATABASE_URL, echo=False)
+# Force search_path=public to avoid missing-table issues after schema reset (Neon/PG)
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    connect_args={
+        "server_settings": {"search_path": "public"}
+    },
+)
 
 async_session = sessionmaker(
     engine, class_=AsyncSession, expire_on_commit=False
