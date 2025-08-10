@@ -23,6 +23,11 @@ import asyncio
 
 app = FastAPI()
 
+# Health check endpoint for uptime monitoring
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 # Templates for serving HTML
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "static"))
 
