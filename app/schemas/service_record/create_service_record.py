@@ -11,11 +11,21 @@ class OilType(str, Enum):
     HIGH_MILEAGE_FULL_SYNTHETIC = "HIGH_MILEAGE_FULL_SYNTHETIC"
 
 class OilViscosity(str, Enum):
+    W0_16 = "0W-16"
     W0_20 = "0W-20"
+    W0_30 = "0W-30"
+    W0_40 = "0W-40"
     W5_20 = "5W-20"
     W5_30 = "5W-30"
+    W5_40 = "5W-40"
+    W5_50 = "5W-50"
     W10_30 = "10W-30"
+    W10_40 = "10W-40"
+    W10_50 = "10W-50"
+    W10_60 = "10W-60"
     W15_40 = "15W-40"
+    W20_50 = "20W-50"
+    W25_60 = "25W-60"
 
 class ServiceRecordCreate(BaseModel):
     vin: str
